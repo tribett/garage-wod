@@ -7,6 +7,8 @@ import { LogPage } from '@/pages/LogPage'
 import { ProgramPage } from '@/pages/ProgramPage'
 import { HistoryPage } from '@/pages/HistoryPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { WodPage } from '@/pages/WodPage'
+import { EditProgramPage } from '@/pages/EditProgramPage'
 
 function App() {
   return (
@@ -17,6 +19,8 @@ function App() {
           <Route path="/workout/:weekNumber/:dayNumber" element={<WorkoutPage />} />
           <Route path="/timer" element={<TimerPage />} />
           <Route path="/log/:weekNumber/:dayNumber" element={<LogPage />} />
+          <Route path="/wod" element={<WodPage />} />
+          <Route path="/program/create" element={<EditProgramPage />} />
           <Route path="/program" element={<ProgramPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/history/:movementName" element={<HistoryPage />} />

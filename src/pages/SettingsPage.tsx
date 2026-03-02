@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useSettings, useUpdateSettings } from '@/contexts/SettingsContext'
 import { useProgramDispatch } from '@/contexts/ProgramContext'
 import { useWorkoutLogDispatch } from '@/contexts/WorkoutLogContext'
@@ -22,15 +23,21 @@ const UNIT_OPTIONS: { value: 'lbs' | 'kg'; label: string }[] = [
 ]
 
 export function SettingsPage() {
+  const navigate = useNavigate()
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
   const programDispatch = useProgramDispatch()
   const logDispatch = useWorkoutLogDispatch()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const restoreInputRef = useRef<HTMLInputElement>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null)
   const [showResetModal, setShowResetModal] = useState(false)
+  const [showRestoreModal, setShowRestoreModal] = useState(false)
+  const [pendingRestore, setPendingRestore] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null)
 
   const storageUsed = storage.getUsageBytes()
   const storageKB = (storageUsed / 1024).toFixed(1)
@@ -74,9 +81,45 @@ export function SettingsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `garage-wod-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `grgwod-backup-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  async function handleRestoreFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setRestoreError(null)
+    setRestoreSuccess(null)
+
+    try {
+      const text = await file.text()
+      // Validate it's parseable JSON before showing the modal
+      JSON.parse(text)
+      setPendingRestore(text)
+      setShowRestoreModal(true)
+    } catch {
+      setRestoreError('Invalid JSON file. Please select a valid backup.')
+    }
+
+    if (restoreInputRef.current) restoreInputRef.current.value = ''
+  }
+
+  function handleRestoreConfirm() {
+    if (!pendingRestore) return
+
+    const result = storage.importAll(pendingRestore)
+    setShowRestoreModal(false)
+    setPendingRestore(null)
+
+    if (result.success) {
+      setRestoreSuccess('Backup restored! Reloading...')
+      // Reload after a short delay so the user sees the success message
+      setTimeout(() => window.location.reload(), 800)
+    } else {
+      setRestoreError(result.error ?? 'Failed to restore backup.')
+    }
   }
 
   return (
@@ -173,22 +216,30 @@ export function SettingsPage() {
           <Card>
             <div className="space-y-3">
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                Upload a JSON file to load a custom workout program.
+                Create a program in-app or upload a JSON file.
               </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Choose JSON File
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => navigate('/program/create')}
+                >
+                  Create Program
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Upload JSON
+                </Button>
+              </div>
               {uploadError && (
                 <p className="text-xs text-red-500 dark:text-red-400 whitespace-pre-wrap">
                   {uploadError}
@@ -215,10 +266,36 @@ export function SettingsPage() {
                   <p className="text-sm font-medium">Storage Used</p>
                   <p className="text-xs text-zinc-400">{storageKB} KB</p>
                 </div>
-                <Button variant="secondary" size="sm" onClick={handleExport}>
-                  Export
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={handleExport}>
+                    Export
+                  </Button>
+                  <input
+                    ref={restoreInputRef}
+                    type="file"
+                    accept=".json"
+                    onChange={handleRestoreFileSelect}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => restoreInputRef.current?.click()}
+                  >
+                    Import
+                  </Button>
+                </div>
               </div>
+              {restoreError && (
+                <p className="text-xs text-red-500 dark:text-red-400 mt-2">
+                  {restoreError}
+                </p>
+              )}
+              {restoreSuccess && (
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2">
+                  {restoreSuccess}
+                </p>
+              )}
             </Card>
 
             <Card>
@@ -246,9 +323,9 @@ export function SettingsPage() {
           </h3>
           <Card>
             <div className="space-y-1">
-              <p className="font-display font-bold text-sm">Garage WOD</p>
+              <p className="font-display font-bold text-sm">GRGWOD</p>
               <p className="text-xs text-zinc-400">
-                Open-source workout tracker for garage gym athletes.
+                Garage gym workout tracker for CrossFit athletes.
               </p>
               <p className="text-xs text-zinc-400">v0.1.0</p>
             </div>
@@ -270,6 +347,25 @@ export function SettingsPage() {
             </Button>
             <Button variant="danger" fullWidth onClick={handleReset}>
               Reset Everything
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Restore Confirmation Modal */}
+      <Modal open={showRestoreModal} onClose={() => { setShowRestoreModal(false); setPendingRestore(null) }}>
+        <div className="space-y-4">
+          <h2 className="font-display font-bold text-lg">Restore from Backup?</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            This will replace your current settings, workout logs, and program data with the
+            backup. The page will reload after restoring.
+          </p>
+          <div className="flex gap-3">
+            <Button variant="ghost" fullWidth onClick={() => { setShowRestoreModal(false); setPendingRestore(null) }}>
+              Cancel
+            </Button>
+            <Button fullWidth onClick={handleRestoreConfirm}>
+              Restore
             </Button>
           </div>
         </div>

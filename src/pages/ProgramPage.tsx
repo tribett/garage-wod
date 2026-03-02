@@ -5,6 +5,7 @@ import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { Header } from '@/components/layout/Header'
 import { Accordion } from '@/components/ui/Accordion'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import type { Day, Phase, WodScoring, Week } from '@/types/program'
 import type { WorkoutLog } from '@/types/workout-log'
 
@@ -272,6 +273,7 @@ function PhaseAccordion({
 // ---------------------------------------------------------------------------
 
 export function ProgramPage() {
+  const navigate = useNavigate()
   const { program, position, currentPhase } = useProgram()
   const logs = useWorkoutLogs()
 
@@ -285,7 +287,18 @@ export function ProgramPage() {
 
   return (
     <div className="px-5 pb-8">
-      <Header title="Program" subtitle={program.name} />
+      <Header
+        title="Program"
+        subtitle={program.name}
+        rightAction={
+          <button
+            onClick={() => navigate('/program/create')}
+            className="text-accent dark:text-accent-light hover:opacity-80 text-sm font-medium transition-opacity"
+          >
+            + New
+          </button>
+        }
+      />
 
       <div className="mt-4">
         {program.phases.map((phase, index) => (
@@ -299,6 +312,16 @@ export function ProgramPage() {
             logs={logs}
           />
         ))}
+      </div>
+
+      <div className="mt-6">
+        <Button
+          variant="secondary"
+          fullWidth
+          onClick={() => navigate('/program/create')}
+        >
+          Create New Program
+        </Button>
       </div>
     </div>
   )

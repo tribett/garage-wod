@@ -10,6 +10,10 @@ export interface WorkoutLog {
   exercises?: ExerciseLog[]
   wodResult?: WodResult
   notes?: string
+  /** For standalone WODs (programId === 'standalone') */
+  title?: string
+  /** Free-text workout description for standalone WODs */
+  description?: string
 }
 
 export interface ExerciseLog {

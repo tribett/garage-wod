@@ -3,7 +3,7 @@ import type { Program } from '@/types/program'
 export const returnToCrossfitProgram: Program = {
   id: 'return-to-crossfit',
   name: 'Return to CrossFit',
-  author: 'Garage WOD',
+  author: 'GRGWOD',
   description:
     'A 12-week program designed to safely rebuild your CrossFit fitness from scratch. Starts with simple movement patterns and light loads, progresses through engine-building conditioning, and finishes with benchmark-style workouts.',
   version: '1.0.0',

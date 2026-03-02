@@ -53,6 +53,28 @@ export const storage = {
     return JSON.stringify(data, null, 2)
   },
 
+  importAll(jsonString: string): { success: boolean; error?: string } {
+    try {
+      const data = JSON.parse(jsonString)
+      if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+        return { success: false, error: 'Backup file must contain a JSON object.' }
+      }
+
+      // Build a set of valid enum names for whitelisting
+      const validNames = new Set(Object.keys(STORAGE_KEYS))
+
+      for (const [name, value] of Object.entries(data)) {
+        if (!validNames.has(name)) continue
+        const storageKey = STORAGE_KEYS[name as keyof typeof STORAGE_KEYS]
+        localStorage.setItem(storageKey, JSON.stringify(value))
+      }
+
+      return { success: true }
+    } catch {
+      return { success: false, error: 'Invalid JSON file. Please check the format.' }
+    }
+  },
+
   getUsageBytes(): number {
     let total = 0
     Object.values(STORAGE_KEYS).forEach((key) => {

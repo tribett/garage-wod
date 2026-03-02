@@ -4,7 +4,7 @@ interface HeaderProps {
   rightAction?: React.ReactNode
 }
 
-export function Header({ title = 'Garage WOD', subtitle, rightAction }: HeaderProps) {
+export function Header({ title = 'GRGWOD', subtitle, rightAction }: HeaderProps) {
   return (
     <header className="flex items-center justify-between px-5 pt-4 pb-2">
       <div>

@@ -5,6 +5,7 @@ import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { calculateStreak, getWorkoutsThisWeek } from '@/lib/streak-calculator'
 import { getRecentPRs } from '@/lib/pr-calculator'
+import { findNextWorkout } from '@/lib/next-workout'
 import { formatShortDate } from '@/lib/date-utils'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -156,14 +157,68 @@ function TodayWorkoutCard({
   day,
   weekNumber,
   isCompleted,
+  nextWorkout,
 }: {
   day: Day | null
   weekNumber: number
   isCompleted: boolean
+  nextWorkout: { day: Day; weekNumber: number } | null
 }) {
   const navigate = useNavigate()
 
   if (!day) {
+    if (nextWorkout) {
+      const nextWod = getWodBlock(nextWorkout.day)
+      const nextWodLabel = formatWodType(nextWod?.scoring)
+      const nextBadgeVariant = wodTypeBadgeVariant(nextWod?.scoring)
+
+      return (
+        <Card padding="lg" className="animate-slide-up delay-3">
+          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-3">
+            Rest day — up next
+          </p>
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h3 className="font-display font-bold text-lg text-zinc-900 dark:text-zinc-50">
+                {nextWod?.name ?? nextWorkout.day.name}
+              </h3>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                Week {nextWorkout.weekNumber} · Day {nextWorkout.day.dayNumber}
+              </p>
+            </div>
+            <Badge variant={nextBadgeVariant}>{nextWodLabel}</Badge>
+          </div>
+
+          {nextWod && (
+            <div className="mb-4 space-y-1">
+              {nextWod.movements.slice(0, 3).map((m) => (
+                <p key={m.id} className="text-sm text-zinc-600 dark:text-zinc-400">
+                  {m.reps && <span className="font-semibold">{m.reps}</span>}{' '}
+                  {m.name}
+                </p>
+              ))}
+              {nextWod.movements.length > 3 && (
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                  +{nextWod.movements.length - 3} more
+                </p>
+              )}
+            </div>
+          )}
+
+          <Button
+            variant="secondary"
+            size="lg"
+            fullWidth
+            onClick={() =>
+              navigate(`/workout/${nextWorkout.weekNumber}/${nextWorkout.day.dayNumber}`)
+            }
+          >
+            Preview Workout
+          </Button>
+        </Card>
+      )
+    }
+
     return (
       <Card padding="lg" className="animate-slide-up delay-3">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -328,6 +383,7 @@ function RecentPRs({ prs, unit }: { prs: PR[]; unit: 'lbs' | 'kg' }) {
 // ---------------------------------------------------------------------------
 
 export function DashboardPage() {
+  const navigate = useNavigate()
   const { program, position, currentPhase, currentWeek, currentDay } =
     useProgram()
   const logs = useWorkoutLogs()
@@ -348,6 +404,11 @@ export function DashboardPage() {
     [logs, position.week, position.day],
   )
 
+  const nextWorkout = useMemo(
+    () => findNextWorkout(program, position, logs),
+    [program, position, logs],
+  )
+
   if (!program) {
     return (
       <div className="px-5 py-12 text-center">
@@ -359,7 +420,7 @@ export function DashboardPage() {
   return (
     <div className="px-5 pb-8">
       <Header
-        title="Garage WOD"
+        title="GRGWOD"
         subtitle={currentPhase?.name ?? undefined}
       />
 
@@ -385,7 +446,25 @@ export function DashboardPage() {
           day={currentDay}
           weekNumber={position.week}
           isCompleted={isTodayCompleted}
+          nextWorkout={nextWorkout}
         />
+
+        {/* Daily WOD */}
+        <Card padding="md" className="animate-slide-up delay-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                Log a WOD
+              </p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                CrossFit.com daily WOD or your own
+              </p>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => navigate('/wod')}>
+              Log WOD
+            </Button>
+          </div>
+        </Card>
 
         {/* Stats row */}
         <div className="grid grid-cols-2 gap-3">

@@ -5,6 +5,8 @@ import { useWorkoutLogs, useWorkoutLogDispatch } from '@/contexts/WorkoutLogCont
 import { useSettings } from '@/contexts/SettingsContext'
 import { generateId } from '@/lib/id'
 import { WEIGHT_INCREMENTS } from '@/lib/constants'
+import { detectNewPRs } from '@/lib/pr-calculator'
+import type { PR } from '@/lib/pr-calculator'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -74,6 +76,8 @@ export function LogPage() {
   const [wodScore, setWodScore] = useState(existingLog?.wodResult?.score ?? '')
   const [notes, setNotes] = useState(existingLog?.notes ?? '')
   const [showCelebration, setShowCelebration] = useState(false)
+  const [lastQuickLogId, setLastQuickLogId] = useState<string | null>(null)
+  const [newPRs, setNewPRs] = useState<PR[]>([])
 
   if (!workout || !program) {
     return (
@@ -89,8 +93,9 @@ export function LogPage() {
   const wodScoring: WodScoring | undefined = wodBlock?.scoring
 
   const handleQuickComplete = () => {
+    const logId = existingLog?.id ?? generateId()
     const log: WorkoutLog = {
-      id: existingLog?.id ?? generateId(),
+      id: logId,
       programId: program.id,
       weekNumber: week,
       dayNumber: day,
@@ -105,8 +110,17 @@ export function LogPage() {
     }
 
     setCompleted(true)
+    setLastQuickLogId(logId)
     setShowCelebration(true)
     setTimeout(() => setShowCelebration(false), 2000)
+  }
+
+  const handleUndoComplete = () => {
+    if (lastQuickLogId) {
+      dispatch({ type: 'DELETE_LOG', payload: lastQuickLogId })
+      setCompleted(false)
+      setLastQuickLogId(null)
+    }
   }
 
   const handleSaveDetails = () => {
@@ -150,6 +164,17 @@ export function LogPage() {
       dispatch({ type: 'LOG_WORKOUT', payload: log })
     }
 
+    // Detect new PRs by comparing each exercise against history
+    const detectedPRs: PR[] = []
+    for (const ex of exercises) {
+      const maxWeight = Math.max(...ex.sets.filter((s) => s.weight).map((s) => s.weight ?? 0), 0)
+      const maxReps = Math.max(...ex.sets.filter((s) => s.reps).map((s) => s.reps ?? 0), 0)
+      if (maxWeight > 0) {
+        const pr = detectNewPRs(ex.movementName, maxWeight, maxReps, logs, settings.weightUnit)
+        if (pr) detectedPRs.push(pr)
+      }
+    }
+    setNewPRs(detectedPRs)
     setCompleted(true)
   }
 
@@ -197,6 +222,33 @@ export function LogPage() {
               <p className="font-display font-bold text-emerald-600 dark:text-emerald-400">
                 Workout Complete!
               </p>
+              {lastQuickLogId && (
+                <button
+                  onClick={handleUndoComplete}
+                  className="mt-2 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline underline-offset-2 transition-colors"
+                >
+                  Undo
+                </button>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* PR Celebration */}
+        {newPRs.length > 0 && (
+          <Card padding="lg" className="animate-scale-in border-amber-300 dark:border-amber-700 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
+            <div className="text-center space-y-2">
+              <div className="text-3xl">🔥</div>
+              <p className="font-display font-bold text-amber-700 dark:text-amber-400">
+                {newPRs.length === 1 ? 'New Personal Record!' : `${newPRs.length} New PRs!`}
+              </p>
+              <div className="space-y-1">
+                {newPRs.map((pr) => (
+                  <p key={pr.movementName} className="text-sm font-medium text-amber-600 dark:text-amber-300">
+                    {pr.movementName}: {pr.value} {pr.unit}
+                  </p>
+                ))}
+              </div>
             </div>
           </Card>
         )}

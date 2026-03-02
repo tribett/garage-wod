@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useSettings } from '@/contexts/SettingsContext'
 import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { getAllPRs, getMovementHistory } from '@/lib/pr-calculator'
 import { formatDate, formatShortDate } from '@/lib/date-utils'
@@ -12,7 +13,9 @@ import type { PR } from '@/lib/pr-calculator'
 export function HistoryPage() {
   const { movementName: urlMovement } = useParams<{ movementName: string }>()
   const navigate = useNavigate()
+  const settings = useSettings()
   const logs = useWorkoutLogs()
+  const unit = settings.weightUnit
   const [selectedMovement, setSelectedMovement] = useState<string | null>(
     urlMovement ? decodeURIComponent(urlMovement) : null,
   )
@@ -53,7 +56,7 @@ export function HistoryPage() {
       <div className="animate-fade-in">
         <Header
           title={selectedMovement}
-          subtitle={pr ? `PR: ${pr.value} lbs × ${pr.reps}` : undefined}
+          subtitle={pr ? `PR: ${pr.value} ${unit} × ${pr.reps}` : undefined}
           rightAction={
             <button
               onClick={() => {
@@ -90,7 +93,7 @@ export function HistoryPage() {
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="font-display font-semibold text-sm">
-                      {entry.weight} lbs
+                      {entry.weight} {unit}
                     </span>
                     <span className="text-xs text-zinc-400">× {entry.reps}</span>
                     {pr && entry.weight === pr.value && (
@@ -137,7 +140,7 @@ export function HistoryPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-display font-bold text-accent dark:text-accent-dark">
-                          {pr.value} lbs
+                          {pr.value} {unit}
                         </span>
                         <Badge variant="accent">PR</Badge>
                       </div>
@@ -191,7 +194,7 @@ export function HistoryPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-display font-semibold text-sm">
-                        Week {log.weekNumber} · Day {log.dayNumber}
+                        {log.title ?? `Week ${log.weekNumber} · Day ${log.dayNumber}`}
                       </p>
                       <p className="text-xs text-zinc-400">{formatDate(log.completedAt)}</p>
                     </div>

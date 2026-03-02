@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
 } as const
 
 export const DEFAULT_PROGRAM_ID = 'return-to-crossfit'
+export const STANDALONE_PROGRAM_ID = 'standalone'
 
 export const WEIGHT_INCREMENTS = {
   lbs: 5,

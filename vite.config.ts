@@ -1,9 +1,16 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    css: false,
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -11,9 +18,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'sounds/*.mp3'],
       manifest: {
-        name: 'Garage WOD',
-        short_name: 'GarageWOD',
-        description: 'Track your garage gym CrossFit workouts',
+        name: 'GRGWOD',
+        short_name: 'GRGWOD',
+        description: 'Garage gym workout tracker for CrossFit athletes',
         theme_color: '#18181b',
         background_color: '#fafafa',
         display: 'standalone',

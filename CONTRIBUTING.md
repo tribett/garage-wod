@@ -1,4 +1,4 @@
-# Contributing to Garage WOD
+# Contributing to GRGWOD
 
 Thanks for your interest in contributing! Here's how to get started.
 
@@ -11,6 +11,13 @@ pnpm install
 pnpm dev
 ```
 
+## Running Tests
+
+```bash
+pnpm test        # run once
+pnpm test:watch  # watch mode
+```
+
 ## Project Structure
 
 ```
@@ -19,7 +26,7 @@ src/
   contexts/     React contexts (Settings, Program, WorkoutLog)
   data/         Built-in program data
   hooks/        Custom hooks (timer, audio, wake lock, etc.)
-  lib/          Pure utility functions
+  lib/          Pure utility functions and tests
   pages/        Route-level page components
   types/        TypeScript type definitions
 public/
@@ -32,13 +39,14 @@ public/
 - **Keep it simple.** This app should stay lightweight and dependency-minimal.
 - **No backend.** All state lives in localStorage.
 - **Mobile-first.** Design for phone screens in a garage.
+- **Test what matters.** Utility functions and data logic should have tests.
 - **Accessibility matters.** Use semantic HTML, proper ARIA attributes, and keyboard navigation.
 
 ## Submitting Changes
 
 1. Fork the repo and create a feature branch
 2. Make your changes
-3. Run `pnpm build` to verify the build passes
+3. Run `pnpm test && pnpm build` to verify everything passes
 4. Open a pull request with a clear description
 
 ## Custom Program Contributions
