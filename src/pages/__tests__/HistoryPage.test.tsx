@@ -51,6 +51,7 @@ function renderHistoryPage(opts: { weightUnit?: 'lbs' | 'kg'; logs?: WorkoutLog[
     soundEnabled: true,
     weightUnit,
     keepScreenAwake: true,
+    autoBackup: false,
   }
 
   setTestStore({
