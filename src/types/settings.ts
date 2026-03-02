@@ -3,6 +3,7 @@ export interface Settings {
   soundEnabled: boolean
   weightUnit: 'lbs' | 'kg'
   keepScreenAwake: boolean
+  autoBackup: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -10,4 +11,5 @@ export const DEFAULT_SETTINGS: Settings = {
   soundEnabled: true,
   weightUnit: 'lbs',
   keepScreenAwake: true,
+  autoBackup: false,
 }

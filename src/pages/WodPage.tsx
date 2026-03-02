@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useSettings } from '@/contexts/SettingsContext'
 import { useWorkoutLogs, useWorkoutLogDispatch } from '@/contexts/WorkoutLogContext'
 import { generateId } from '@/lib/id'
+import { storage } from '@/lib/storage'
 import { STANDALONE_PROGRAM_ID } from '@/lib/constants'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -19,6 +21,7 @@ const WOD_TYPES: { value: WodType; label: string; scorePlaceholder: string }[] =
 
 export function WodPage() {
   const navigate = useNavigate()
+  const settings = useSettings()
   const logs = useWorkoutLogs()
   const dispatch = useWorkoutLogDispatch()
 
@@ -57,6 +60,8 @@ export function WodPage() {
 
     dispatch({ type: 'LOG_WORKOUT', payload: log })
     setSaved(true)
+
+    if (settings.autoBackup) storage.triggerAutoBackup()
   }
 
   if (saved) {

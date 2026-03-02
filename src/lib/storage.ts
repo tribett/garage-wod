@@ -84,6 +84,26 @@ export const storage = {
     return total
   },
 
+  /**
+   * Triggers a download of a full backup JSON file.
+   * Must be called from a user-gesture event handler (click/tap)
+   * to avoid browser download-blocking on mobile.
+   */
+  triggerAutoBackup(): void {
+    try {
+      const data = storage.exportAll()
+      const blob = new Blob([data], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'grgwod-backup.json'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Auto-backup failed:', e)
+    }
+  },
+
   migrate(): void {
     const meta = storage.load<StorageMeta>(STORAGE_KEYS.META, {
       schemaVersion: 0,

@@ -263,6 +263,19 @@ export function SettingsPage() {
             <Card>
               <div className="flex items-center justify-between">
                 <div>
+                  <span className="text-sm font-medium">Auto-Backup</span>
+                  <p className="text-xs text-zinc-400">Download a backup after each workout</p>
+                </div>
+                <Toggle
+                  checked={settings.autoBackup}
+                  onChange={(v) => updateSettings({ autoBackup: v })}
+                />
+              </div>
+            </Card>
+
+            <Card>
+              <div className="flex items-center justify-between">
+                <div>
                   <p className="text-sm font-medium">Storage Used</p>
                   <p className="text-xs text-zinc-400">{storageKB} KB</p>
                 </div>
@@ -327,7 +340,7 @@ export function SettingsPage() {
               <p className="text-xs text-zinc-400">
                 Garage gym workout tracker for CrossFit athletes.
               </p>
-              <p className="text-xs text-zinc-400">v0.1.0</p>
+              <p className="text-xs text-zinc-400">v1.0.0</p>
             </div>
           </Card>
         </section>

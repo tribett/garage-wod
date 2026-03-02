@@ -4,6 +4,7 @@ import { useProgram } from '@/contexts/ProgramContext'
 import { useWorkoutLogs, useWorkoutLogDispatch } from '@/contexts/WorkoutLogContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { generateId } from '@/lib/id'
+import { storage } from '@/lib/storage'
 import { WEIGHT_INCREMENTS } from '@/lib/constants'
 import { detectNewPRs } from '@/lib/pr-calculator'
 import type { PR } from '@/lib/pr-calculator'
@@ -113,6 +114,8 @@ export function LogPage() {
     setLastQuickLogId(logId)
     setShowCelebration(true)
     setTimeout(() => setShowCelebration(false), 2000)
+
+    if (settings.autoBackup) storage.triggerAutoBackup()
   }
 
   const handleUndoComplete = () => {
@@ -176,6 +179,8 @@ export function LogPage() {
     }
     setNewPRs(detectedPRs)
     setCompleted(true)
+
+    if (settings.autoBackup) storage.triggerAutoBackup()
   }
 
   const updateWeight = (movId: string, value: number | undefined) => {
