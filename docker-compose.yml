@@ -1,0 +1,6 @@
+services:
+  garage-wod:
+    build: .
+    ports:
+      - "3000:80"
+    restart: unless-stopped
