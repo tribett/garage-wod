@@ -1,72 +1,66 @@
 /**
  * Maps common CrossFit movement names to YouTube video IDs.
- * Video IDs are sourced from CrossFit's official movement library.
+ * All videos sourced from the official CrossFit YouTube channel (@crossfit).
+ * https://www.youtube.com/@crossfit
  */
 export const MOVEMENT_VIDEOS: Record<string, string> = {
   // ── Squats ──────────────────────────────────────────────
   'Air Squat': 'rMvwVtlqjTE',
   'Front Squat': 'uYumuL_G_V0',
-  'Overhead Squat': 'RD_vUnqwqqI',
-  'Back Squat': 'ultWZbUMPL8',
-  'Goblet Squat': 'MeIiIdhvXT4',
+  'Overhead Squat': 'pn8mqlG0nkE',
+  'Back Squat': 'QmZAiBqPvZw',
 
   // ── Presses ──────────────────────────────────────────────
-  'Shoulder Press': 'xe19t2_5s-s',
+  'Shoulder Press': '5yWaNOvgFCM',
   'Push Press': 'iaBVSJm78ko',
-  'Push Jerk': '4EkAKSXmAzc',
-  'Split Jerk': 'GZfFGCpOoEk',
-  'Bench Press': 'rT7DgCr-3pg',
-  'Handstand Push-up': 'yeNeCmcB6Y4',
+  'Push Jerk': 'VrHNJXoSyXw',
+  'Split Jerk': 'GUDkOtraHHY',
+  'Bench Press': 'SCVCLChPQFY',
+  'Handstand Push-up': '0wDEO6shVjc',
 
   // ── Deadlifts & Pulls ─────────────────────────────────────
-  'Deadlift': 'op9kVnSo6Fo',
-  'Sumo Deadlift High Pull': 'o4TBKfG2oj4',
-  'Romanian Deadlift': 'JCXUYuzwNrM',
-  'Clean': 'EKnLaEL2Jvo',
-  'Power Clean': 'KwLBqHIz-3U',
-  'Hang Clean': 'TXRiAbEgj5g',
-  'Clean & Jerk': 'PjY1rH4_MOA',
-  'Snatch': '9xQp2sldyts',
-  'Power Snatch': 'tuOeF0hNlHM',
-  'Hang Snatch': 'DvFpnYEVNp0',
+  'Deadlift': '1ZXobu7JvvE',
+  'Sumo Deadlift High Pull': 'gh55vVlwlQg',
+  'Clean': 'Ty14ogq_Vok',
+  'Power Clean': 'KwYJTpQ_x5A',
+  'Hang Clean': 'DaKC_BEN5bk',
+  'Clean and Jerk': 'PjY1rH4_MOA',
+  'Snatch': 'GhxhiehJcQY',
+  'Power Snatch': 'TL8SMp7RdXQ',
+  'Hang Snatch': 'IucshEToDyM',
 
   // ── Gymnastics ──────────────────────────────────────────
-  'Pull-up': '9ygdIPOIkks',
-  'Chest-to-Bar Pull-up': 'oa3_EYsgR5M',
-  'Muscle-up': 'astQGO51tDk',
-  'Bar Muscle-up': 'AszPfMPerXQ',
-  'Ring Dip': 'TIIQeJ_jGzA',
-  'Toes-to-Bar': 'T4Lxl6bkHdA',
-  'Knees-to-Elbow': 'hNiJbL_ZhEg',
-  'Rope Climb': 'H3lPfbDwbqo',
-  'Handstand Walk': 'M5fzTCpHMgo',
-  'Pistol': 'NKgaQjCUdqA',
-  'L-sit': 'quANFeDO724',
+  'Pull-up': 'HRV5YKKaeVw',
+  'Chest-to-Bar Pull-up': 'xf69XHAs5w8',
+  'Muscle-up': 'vJTJFc2wmk4',
+  'Bar Muscle-up': 'o69WaY_7k2c',
+  'Ring Dip': 'EznLCDBAPIU',
+  'Toes-to-Bar': '6dHvTlsMvNY',
+  'Knees-to-Elbow': '_DUlB4YpZRw',
+  'Rope Climb': 'zBoTgBpkn7o',
+  'Handstand Walk': 'FdgJ9jZIT-Q',
+  'Pistol': 'keSzg7MaoVQ',
+  'L-sit': '_HbccxgnCg0',
 
   // ── Common CrossFit Movements ──────────────────────────
-  'Thruster': 'iqhFJMHHFKo',
-  'Wall Ball': 'Jil6SnGOMdE',
+  'Thruster': 'L219ltL15zk',
+  'Wall Ball': 'EqjGKsiIMCE',
   'Kettlebell Swing': 'mKDIuUbH94Q',
-  'Box Jump': 'hxrbviGlhBg',
-  'Burpee': 'TU8QYVW0gDU',
-  'Push-up': 'IODxDxX7oi4',
-  'Sit-up': 'jDvj5fnie-w',
-  'Double-under': '-tF57MJFRBs',
-  'Medicine-ball Clean': '1sDu103HcnI',
-
-  // ── Rowing & Running ───────────────────────────────────
-  'Row': 'G8sFdEPqoJI',
-  'Bike': 'HA1o8iX-OkQ',
+  'Box Jump': 'NBY9-kTuHEk',
+  'Burpee': 'auBLPXO8Fww',
+  'Push-up': '0pkjOk0EiAk',
+  'Sit-up': 'VIZX2Ru9qU8',
+  'GHD Sit-up': 'oFwt7WfnPcc',
+  'Double-under': '82jNjDS19lg',
+  'Medicine-ball Clean': 'KVGhkHSrDJo',
 
   // ── Carries & Holds ────────────────────────────────────
-  'Farmers Carry': 'Fkzk_RqlYig',
-  'Overhead Carry': 'y1r0k_iBfuE',
-  'Turkish Get-up': 'B3F7utsPbh4',
+  'Turkish Get-up': 'saYKvqSscuY',
 
   // ── Dumbbell / Accessory ───────────────────────────────
-  'Dumbbell Snatch': 'f7cgDyOLjMs',
-  'Dumbbell Thruster': 'VODQBsab1Mk',
-  'Dumbbell Clean': 'B7buGni4fz4',
-  'Lunge': 'D7KaRcUTQeE',
-  'Walking Lunge': 'L8fvypPH3SA',
+  'Dumbbell Snatch': '3mlhF3dptAo',
+  'Dumbbell Thruster': 'u3wKkZjE8QM',
+  'Dumbbell Clean': 'SYxObzJ3gn0',
+  'Lunge': '7EmwtpAI8cM',
+  'Walking Lunge': 'DlhojghkaQ0',
 }
