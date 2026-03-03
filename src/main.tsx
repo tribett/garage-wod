@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { AppProviders } from '@/contexts/AppProviders'
 import { storage } from '@/lib/storage'
 import './index.css'
@@ -10,8 +11,10 @@ storage.migrate()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AppProviders>
-      <App />
-    </AppProviders>
+    <ErrorBoundary>
+      <AppProviders>
+        <App />
+      </AppProviders>
+    </ErrorBoundary>
   </StrictMode>,
 )

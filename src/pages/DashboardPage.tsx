@@ -5,6 +5,7 @@ import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { calculateStreak, getWorkoutsThisWeek, getWorkoutsThisMonth, getTotalWodCount } from '@/lib/streak-calculator'
 import { getRecentPRs } from '@/lib/pr-calculator'
+import { getWeeklyVolume } from '@/lib/volume-calculator'
 import { findNextWorkout } from '@/lib/next-workout'
 import { formatShortDate } from '@/lib/date-utils'
 import { Header } from '@/components/layout/Header'
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import type { Day, WodScoring } from '@/types/program'
 import type { PR } from '@/lib/pr-calculator'
+import type { WeeklyVolume } from '@/lib/volume-calculator'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -250,28 +252,38 @@ function TodayWorkoutCard({
         )}
       </div>
 
-      {wodBlock?.description && (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4 leading-relaxed">
-          {wodBlock.description}
-        </p>
-      )}
-
-      {wodBlock && !isCompleted && (
-        <div className="mb-4 space-y-1">
-          {wodBlock.movements.slice(0, 4).map((m) => (
-            <p key={m.id} className="text-sm text-zinc-700 dark:text-zinc-300">
-              {m.reps && <span className="font-semibold">{m.reps}</span>}{' '}
-              {m.name}
-              {m.weight && (
-                <span className="text-zinc-400 dark:text-zinc-500"> ({m.weight})</span>
+      {/* Block previews — show all blocks (strength, skill, WOD) */}
+      {!isCompleted && day.blocks.length > 0 && (
+        <div className="mb-4 space-y-3">
+          {day.blocks.map((block, blockIdx) => (
+            <div key={`${block.type}-${blockIdx}`}>
+              {/* Block label */}
+              {day.blocks.length > 1 && (
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-1">
+                  {block.name ?? block.type}
+                </p>
               )}
-            </p>
+              {block.description && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">{block.description}</p>
+              )}
+              <div className="space-y-0.5">
+                {block.movements.slice(0, 3).map((m) => (
+                  <p key={m.id} className="text-sm text-zinc-700 dark:text-zinc-300">
+                    {m.reps && <span className="font-semibold">{m.reps}</span>}{' '}
+                    {m.name}
+                    {m.weight && (
+                      <span className="text-zinc-400 dark:text-zinc-500"> ({m.weight})</span>
+                    )}
+                  </p>
+                ))}
+                {block.movements.length > 3 && (
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                    +{block.movements.length - 3} more
+                  </p>
+                )}
+              </div>
+            </div>
           ))}
-          {wodBlock.movements.length > 4 && (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">
-              +{wodBlock.movements.length - 4} more
-            </p>
-          )}
         </div>
       )}
 
@@ -407,6 +419,51 @@ function TotalDisplay({ count }: { count: number }) {
   )
 }
 
+function VolumeChange({ label, thisVal, lastVal }: { label: string; thisVal: number; lastVal: number }) {
+  const diff = lastVal > 0 ? Math.round(((thisVal - lastVal) / lastVal) * 100) : thisVal > 0 ? 100 : 0
+  const isUp = diff > 0
+  const isDown = diff < 0
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-zinc-500 dark:text-zinc-400">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm font-display font-bold text-zinc-900 dark:text-zinc-50">{thisVal}</span>
+        {diff !== 0 && (
+          <span className={`text-[10px] font-semibold ${isUp ? 'text-emerald-600 dark:text-emerald-400' : isDown ? 'text-red-500 dark:text-red-400' : ''}`}>
+            {isUp ? '↑' : '↓'}{Math.abs(diff)}%
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function WeeklyVolumeCard({ volume }: { volume: WeeklyVolume }) {
+  const { thisWeek, lastWeek } = volume
+  if (thisWeek.workouts === 0 && lastWeek.workouts === 0) return null
+
+  return (
+    <div className="animate-slide-up delay-5">
+      <h3 className="font-display font-semibold text-sm text-zinc-900 dark:text-zinc-50 mb-2">
+        Weekly Volume
+      </h3>
+      <Card padding="md">
+        <div className="space-y-2">
+          <VolumeChange label="Workouts" thisVal={thisWeek.workouts} lastVal={lastWeek.workouts} />
+          {(thisWeek.totalSets > 0 || lastWeek.totalSets > 0) && (
+            <VolumeChange label="Sets" thisVal={thisWeek.totalSets} lastVal={lastWeek.totalSets} />
+          )}
+          {(thisWeek.totalReps > 0 || lastWeek.totalReps > 0) && (
+            <VolumeChange label="Reps" thisVal={thisWeek.totalReps} lastVal={lastWeek.totalReps} />
+          )}
+          <p className="text-[10px] text-zinc-400 dark:text-zinc-600 pt-1">vs. last week</p>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 function RecentPRs({ prs, unit }: { prs: PR[]; unit: 'lbs' | 'kg' }) {
   if (prs.length === 0) return null
 
@@ -454,6 +511,7 @@ export function DashboardPage() {
   const workoutsThisMonth = useMemo(() => getWorkoutsThisMonth(logs), [logs])
   const totalWods = useMemo(() => getTotalWodCount(logs), [logs])
   const recentPRs = useMemo(() => getRecentPRs(logs, 3), [logs])
+  const weeklyVolume = useMemo(() => getWeeklyVolume(logs), [logs])
 
   const isTodayCompleted = useMemo(
     () =>
@@ -535,6 +593,9 @@ export function DashboardPage() {
           <MonthlyDisplay count={workoutsThisMonth} />
           <TotalDisplay count={totalWods} />
         </div>
+
+        {/* Weekly Volume */}
+        <WeeklyVolumeCard volume={weeklyVolume} />
 
         {/* Recent PRs */}
         <RecentPRs prs={recentPRs} unit={settings.weightUnit} />

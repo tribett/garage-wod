@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { getAllPRs, getMovementHistory } from '@/lib/pr-calculator'
+import { buildPRTimeline } from '@/lib/pr-timeline'
 import { searchWorkoutHistory } from '@/lib/wod-history'
 import { formatDate, formatShortDate } from '@/lib/date-utils'
 import { Header } from '@/components/layout/Header'
@@ -58,6 +59,11 @@ export function HistoryPage() {
     [selectedMovement, logs],
   )
 
+  const prTimeline = useMemo(
+    () => (selectedMovement ? buildPRTimeline(logs, selectedMovement) : []),
+    [selectedMovement, logs],
+  )
+
   if (selectedMovement) {
     const pr = allPRs.get(selectedMovement.toLowerCase())
     return (
@@ -83,6 +89,20 @@ export function HistoryPage() {
               data={movementHistory.map((h) => ({ label: h.date, value: h.weight }))}
             />
           </Card>
+
+          {/* PR Progression Chart */}
+          {prTimeline.length > 1 && (
+            <div>
+              <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 px-1 mb-2">
+                PR Progression
+              </h3>
+              <Card>
+                <SimpleChart
+                  data={prTimeline.map((e) => ({ label: e.date, value: e.weight }))}
+                />
+              </Card>
+            </div>
+          )}
 
           <div className="space-y-2">
             <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 px-1">

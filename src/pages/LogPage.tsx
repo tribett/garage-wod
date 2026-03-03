@@ -1,12 +1,14 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useProgram } from '@/contexts/ProgramContext'
 import { useWorkoutLogs, useWorkoutLogDispatch } from '@/contexts/WorkoutLogContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useToast } from '@/contexts/ToastContext'
 import { generateId } from '@/lib/id'
 import { storage } from '@/lib/storage'
 import { WEIGHT_INCREMENTS } from '@/lib/constants'
 import { detectNewPRs } from '@/lib/pr-calculator'
+import { triggerHaptic } from '@/lib/haptics'
 import type { PR } from '@/lib/pr-calculator'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -15,6 +17,7 @@ import { NumberInput } from '@/components/ui/NumberInput'
 import { Accordion } from '@/components/ui/Accordion'
 import { Badge } from '@/components/ui/Badge'
 import { RestTimer } from '@/components/ui/RestTimer'
+import { Confetti } from '@/components/ui/Confetti'
 import type { WorkoutLog, ExerciseLog, SetLog, WodResult } from '@/types/workout-log'
 import type { Movement, WodScoring } from '@/types/program'
 
@@ -25,6 +28,7 @@ export function LogPage() {
   const logs = useWorkoutLogs()
   const dispatch = useWorkoutLogDispatch()
   const settings = useSettings()
+  const { addToast } = useToast()
 
   const week = Number(weekNumber)
   const day = Number(dayNumber)
@@ -78,8 +82,10 @@ export function LogPage() {
   const [wodScore, setWodScore] = useState(existingLog?.wodResult?.score ?? '')
   const [notes, setNotes] = useState(existingLog?.notes ?? '')
   const [showCelebration, setShowCelebration] = useState(false)
-  const [lastQuickLogId, setLastQuickLogId] = useState<string | null>(null)
   const [newPRs, setNewPRs] = useState<PR[]>([])
+  const [showConfetti, setShowConfetti] = useState(false)
+
+  const handleConfettiDone = useCallback(() => setShowConfetti(false), [])
 
   if (!workout || !program) {
     return (
@@ -112,19 +118,24 @@ export function LogPage() {
     }
 
     setCompleted(true)
-    setLastQuickLogId(logId)
     setShowCelebration(true)
+    triggerHaptic('success')
     setTimeout(() => setShowCelebration(false), 2000)
 
-    if (settings.autoBackup) storage.triggerAutoBackup()
-  }
+    // Toast with undo action
+    addToast('Workout logged!', 'success', {
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          dispatch({ type: 'DELETE_LOG', payload: logId })
+          setCompleted(false)
+          triggerHaptic('tap')
+        },
+      },
+    })
 
-  const handleUndoComplete = () => {
-    if (lastQuickLogId) {
-      dispatch({ type: 'DELETE_LOG', payload: lastQuickLogId })
-      setCompleted(false)
-      setLastQuickLogId(null)
-    }
+    if (settings.autoBackup) storage.triggerAutoBackup()
   }
 
   const handleSaveDetails = () => {
@@ -181,6 +192,20 @@ export function LogPage() {
     setNewPRs(detectedPRs)
     setCompleted(true)
 
+    if (detectedPRs.length > 0) {
+      triggerHaptic('celebration')
+      setShowConfetti(true)
+    } else {
+      triggerHaptic('success')
+    }
+
+    addToast(
+      detectedPRs.length > 0
+        ? `Saved! ${detectedPRs.length} new PR${detectedPRs.length > 1 ? 's' : ''}! 🔥`
+        : 'Details saved!',
+      detectedPRs.length > 0 ? 'success' : 'info',
+    )
+
     if (settings.autoBackup) storage.triggerAutoBackup()
   }
 
@@ -196,6 +221,9 @@ export function LogPage() {
 
   return (
     <div className="animate-fade-in">
+      {/* Confetti overlay on PR */}
+      {showConfetti && <Confetti onDone={handleConfettiDone} />}
+
       <Header
         title={`Week ${week} · Day ${day}`}
         subtitle={workout.name}
@@ -228,14 +256,6 @@ export function LogPage() {
               <p className="font-display font-bold text-emerald-600 dark:text-emerald-400">
                 Workout Complete!
               </p>
-              {lastQuickLogId && (
-                <button
-                  onClick={handleUndoComplete}
-                  className="mt-2 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline underline-offset-2 transition-colors"
-                >
-                  Undo
-                </button>
-              )}
             </div>
           </Card>
         )}
@@ -284,17 +304,34 @@ export function LogPage() {
           </Accordion>
         )}
 
+        {/* Quick Notes — always visible */}
+        <Card padding="md" className="animate-slide-up delay-2">
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Quick notes — how did it feel?"
+            rows={2}
+            className="
+              w-full px-3 py-2 rounded-xl text-sm resize-none
+              bg-zinc-50 border border-zinc-200 text-zinc-900
+              dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50
+              placeholder:text-zinc-400 dark:placeholder:text-zinc-600
+              focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
+            "
+          />
+        </Card>
+
         {/* Level 2: Detailed Log */}
-        <Accordion
-          title="More Details"
-          badge={<Badge variant="muted">Optional</Badge>}
-          className="animate-slide-up delay-2"
-        >
-          <div className="space-y-3 pb-3">
-            {wodScoring && (
+        {wodScoring && (
+          <Accordion
+            title="WOD Score"
+            badge={<Badge variant="muted">Optional</Badge>}
+            className="animate-slide-up delay-2"
+          >
+            <div className="space-y-3 pb-3">
               <div>
                 <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                  WOD Score ({wodScoring.type === 'amrap' ? 'rounds + reps' : wodScoring.type === 'forTime' ? 'time' : 'result'})
+                  Score ({wodScoring.type === 'amrap' ? 'rounds + reps' : wodScoring.type === 'forTime' ? 'time' : 'result'})
                 </label>
                 <input
                   type="text"
@@ -310,30 +347,14 @@ export function LogPage() {
                   "
                 />
               </div>
-            )}
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                Notes
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="How did it feel? Anything to remember next time?"
-                rows={3}
-                className="
-                  w-full px-3 py-2 rounded-xl text-sm resize-none
-                  bg-zinc-50 border border-zinc-200 text-zinc-900
-                  dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50
-                  placeholder:text-zinc-400 dark:placeholder:text-zinc-600
-                  focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
-                "
-              />
             </div>
-            <Button variant="secondary" fullWidth onClick={handleSaveDetails}>
-              Save Details
-            </Button>
-          </div>
-        </Accordion>
+          </Accordion>
+        )}
+
+        {/* Save Details button */}
+        <Button variant="secondary" fullWidth onClick={handleSaveDetails} className="animate-slide-up delay-3">
+          Save Details
+        </Button>
 
         {/* Navigation */}
         <div className="pt-4">

@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSettings, useUpdateSettings } from '@/contexts/SettingsContext'
 import { useProgramDispatch } from '@/contexts/ProgramContext'
 import { useWorkoutLogDispatch } from '@/contexts/WorkoutLogContext'
 import { validateProgram } from '@/lib/schema-validator'
 import { storage } from '@/lib/storage'
+import { checkStorageQuota } from '@/lib/storage-quota'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Toggle } from '@/components/ui/Toggle'
@@ -39,8 +40,7 @@ export function SettingsPage() {
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null)
 
-  const storageUsed = storage.getUsageBytes()
-  const storageKB = (storageUsed / 1024).toFixed(1)
+  const quota = useMemo(() => checkStorageQuota(storage.getUsageBytes()), [])
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -274,30 +274,60 @@ export function SettingsPage() {
             </Card>
 
             <Card>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Storage Used</p>
-                  <p className="text-xs text-zinc-400">{storageKB} KB</p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Storage Used</p>
+                    <p className="text-xs text-zinc-400">
+                      {quota.usedFormatted} of {quota.totalFormatted}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={handleExport}>
+                      Export
+                    </Button>
+                    <input
+                      ref={restoreInputRef}
+                      type="file"
+                      accept=".json"
+                      onChange={handleRestoreFileSelect}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => restoreInputRef.current?.click()}
+                    >
+                      Import
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" onClick={handleExport}>
-                    Export
-                  </Button>
-                  <input
-                    ref={restoreInputRef}
-                    type="file"
-                    accept=".json"
-                    onChange={handleRestoreFileSelect}
-                    className="hidden"
+
+                {/* Storage quota bar */}
+                <div className="h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ease-out ${
+                      quota.level === 'critical'
+                        ? 'bg-red-500'
+                        : quota.level === 'warning'
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${Math.min(100, quota.percentage)}%` }}
                   />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => restoreInputRef.current?.click()}
-                  >
-                    Import
-                  </Button>
                 </div>
+
+                {quota.level !== 'ok' && (
+                  <p className={`text-xs font-medium ${
+                    quota.level === 'critical'
+                      ? 'text-red-500 dark:text-red-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {quota.level === 'critical'
+                      ? '⚠ Storage nearly full — export a backup and clear old data.'
+                      : '⚠ Storage usage is getting high — consider exporting a backup.'}
+                  </p>
+                )}
               </div>
               {restoreError && (
                 <p className="text-xs text-red-500 dark:text-red-400 mt-2">

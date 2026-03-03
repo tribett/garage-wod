@@ -9,6 +9,7 @@ import { HistoryPage } from '@/pages/HistoryPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { WodPage } from '@/pages/WodPage'
 import { EditProgramPage } from '@/pages/EditProgramPage'
+import { NotFoundPage } from '@/pages/NotFoundPage'
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/history/:movementName" element={<HistoryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Shell>
     </HashRouter>
