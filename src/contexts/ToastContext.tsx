@@ -12,6 +12,8 @@ export interface Toast {
   message: string
   variant: ToastVariant
   action?: { label: string; onClick: () => void }
+  showCountdown?: boolean
+  duration?: number
 }
 
 interface ToastContextValue {
@@ -19,7 +21,7 @@ interface ToastContextValue {
   addToast: (
     message: string,
     variant?: ToastVariant,
-    options?: { action?: Toast['action']; duration?: number },
+    options?: { action?: Toast['action']; duration?: number; showCountdown?: boolean },
   ) => void
   removeToast: (id: string) => void
 }
@@ -53,13 +55,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (
       message: string,
       variant: ToastVariant = 'info',
-      options?: { action?: Toast['action']; duration?: number },
+      options?: { action?: Toast['action']; duration?: number; showCountdown?: boolean },
     ) => {
       const id = `toast-${++nextId}`
-      const toast: Toast = { id, message, variant, action: options?.action }
+      const duration = options?.duration ?? 4000
+      const toast: Toast = {
+        id,
+        message,
+        variant,
+        action: options?.action,
+        showCountdown: options?.showCountdown,
+        duration,
+      }
       setToasts((prev) => [...prev, toast])
 
-      const duration = options?.duration ?? 4000
       setTimeout(() => removeToast(id), duration)
     },
     [removeToast],
@@ -71,11 +80,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {/* Toast container */}
       {toasts.length > 0 && (
         <div className="fixed bottom-20 left-0 right-0 z-50 flex flex-col items-center gap-2 px-4 pointer-events-none">
+          {toasts.some((t) => t.showCountdown) && (
+            <style>{`@keyframes toast-countdown { from { width: 100% } to { width: 0% } }`}</style>
+          )}
           {toasts.map((toast) => (
             <div
               key={toast.id}
               className={`
-                pointer-events-auto animate-slide-up
+                pointer-events-auto animate-slide-up relative overflow-hidden
                 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg max-w-sm w-full
                 ${toast.variant === 'success'
                   ? 'bg-emerald-600 text-white'
@@ -106,6 +118,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
               </button>
+              {toast.showCountdown && toast.duration && (
+                <div
+                  data-testid="toast-countdown-bar"
+                  className="absolute bottom-0 left-0 h-0.5 bg-white/40 rounded-full"
+                  style={{
+                    animation: `toast-countdown ${toast.duration}ms linear forwards`,
+                    width: '100%',
+                  }}
+                />
+              )}
             </div>
           ))}
         </div>

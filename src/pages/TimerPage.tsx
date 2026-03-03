@@ -1,11 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTimer } from '@/hooks/useTimer'
 import { useAudio } from '@/hooks/useAudio'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useSettings } from '@/contexts/SettingsContext'
 import { formatMsPrecise } from '@/lib/date-utils'
+import { formatTimerScore } from '@/lib/format-timer-score'
+import { saveTimerConfig, loadTimerConfig } from '@/lib/timer-config-storage'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { NumberInput } from '@/components/ui/NumberInput'
 import type { TimerConfig, TimerMode } from '@/types/timer'
 
@@ -33,15 +36,30 @@ const TIMER_MODES: { mode: TimerMode; label: string; description: string }[] = [
 ]
 
 function TimerSetup({ onStart }: { onStart: (config: TimerConfig) => void }) {
-  const [selectedMode, setSelectedMode] = useState<TimerMode | null>(null)
-  const [minutes, setMinutes] = useState<number | undefined>(10)
-  const [intervalMinutes, setIntervalMinutes] = useState<number | undefined>(1)
-  const [rounds, setRounds] = useState<number | undefined>(8)
-  const [workSeconds, setWorkSeconds] = useState<number | undefined>(20)
-  const [restSeconds, setRestSeconds] = useState<number | undefined>(10)
+  // Load last-used config for pre-fill (Improvement 3)
+  const saved = useMemo(() => loadTimerConfig(), [])
+
+  const [selectedMode, setSelectedMode] = useState<TimerMode | null>(
+    saved?.mode ? (saved.mode as TimerMode) : null,
+  )
+  const [minutes, setMinutes] = useState<number | undefined>(saved?.minutes ?? 10)
+  const [intervalMinutes, setIntervalMinutes] = useState<number | undefined>(saved?.intervalMinutes ?? 1)
+  const [rounds, setRounds] = useState<number | undefined>(saved?.rounds ?? 8)
+  const [workSeconds, setWorkSeconds] = useState<number | undefined>(saved?.workSeconds ?? 20)
+  const [restSeconds, setRestSeconds] = useState<number | undefined>(saved?.restSeconds ?? 10)
 
   const handleStart = () => {
     if (!selectedMode) return
+
+    // Save config for next session (Improvement 3)
+    saveTimerConfig({
+      mode: selectedMode,
+      minutes,
+      intervalMinutes,
+      rounds,
+      workSeconds,
+      restSeconds,
+    })
 
     let config: TimerConfig
 
@@ -258,6 +276,8 @@ function ActiveTimer({
   movements?: string[]
 }) {
   const [showMovements, setShowMovements] = useState(true)
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false)
+  const pendingNavRef = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
   const settings = useSettings()
   const { preload, playBeep, playLongBeep, playCelebration } = useAudio()
@@ -300,6 +320,18 @@ function ActiveTimer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status])
 
+  // Warn on browser close/refresh when timer active (Improvement 10)
+  useEffect(() => {
+    if (state.status !== 'running' && state.status !== 'paused') return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [state.status])
+
   // Determine what time to display
   const displayMs = useMemo(() => {
     // For countdown modes (amrap, emom, tabata, rest): show interval remaining
@@ -322,6 +354,27 @@ function ActiveTimer({
     state.intervalRemaining > 0 &&
     state.intervalRemaining <= 10000
 
+  const handleNavigateAway = useCallback((navFn: () => void) => {
+    if (state.status === 'running' || state.status === 'paused') {
+      pendingNavRef.current = navFn
+      setShowLeaveWarning(true)
+    } else {
+      navFn()
+    }
+  }, [state.status])
+
+  const confirmLeave = useCallback(() => {
+    setShowLeaveWarning(false)
+    releaseWakeLock()
+    pendingNavRef.current?.()
+    pendingNavRef.current = null
+  }, [releaseWakeLock])
+
+  const cancelLeave = useCallback(() => {
+    setShowLeaveWarning(false)
+    pendingNavRef.current = null
+  }, [])
+
   const handleReset = () => {
     reset()
   }
@@ -338,11 +391,18 @@ function ActiveTimer({
   }
 
   const handleLogWorkout = () => {
+    const timerScore = formatTimerScore(state.elapsed, config.mode)
     if (weekNumber && dayNumber) {
-      navigate(`/log/${weekNumber}/${dayNumber}`)
+      // Pass timer result to LogPage for auto-fill (Improvement 1)
+      navigate(`/log/${weekNumber}/${dayNumber}`, {
+        state: {
+          timerScore,
+          timerMode: config.mode,
+          timerElapsed: state.elapsed,
+        },
+      })
     } else {
       // Navigate to WOD page with timer score pre-filled
-      const timerScore = `${minutes}:${seconds}`
       navigate('/wod', {
         state: {
           timerScore,
@@ -357,7 +417,14 @@ function ActiveTimer({
     <div className="flex-1 flex flex-col bg-zinc-950 text-white select-none">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-        <BackButton />
+        <button
+          onClick={() => handleNavigateAway(() => navigate(-1))}
+          className="w-10 h-10 flex items-center justify-center rounded-xl text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+          </svg>
+        </button>
         <span className="font-display font-bold text-sm uppercase tracking-[0.15em] text-zinc-400">
           {modeLabel(state.mode)}
         </span>
@@ -551,6 +618,21 @@ function ActiveTimer({
           </div>
         )}
       </div>
+
+      {/* Navigation warning when timer is active (Improvement 10) */}
+      <Modal open={showLeaveWarning} onClose={cancelLeave} title="Timer Running">
+        <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+          Your timer is still {state.status === 'paused' ? 'paused' : 'running'}. Leaving will lose your progress.
+        </p>
+        <div className="flex gap-3">
+          <Button variant="secondary" fullWidth onClick={cancelLeave}>
+            Stay
+          </Button>
+          <Button variant="primary" fullWidth onClick={confirmLeave} className="bg-red-600 hover:bg-red-700">
+            Leave
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { estimate1RM, getPercentages } from '@/lib/one-rm-calculator'
 import { searchWorkoutHistory } from '@/lib/wod-history'
 import { formatDate, formatShortDate } from '@/lib/date-utils'
 import { Header } from '@/components/layout/Header'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { SimpleChart } from '@/components/history/SimpleChart'
@@ -69,20 +70,25 @@ export function HistoryPage() {
     const pr = allPRs.get(selectedMovement.toLowerCase())
     return (
       <div className="animate-fade-in">
+        {/* Breadcrumb (Improvement 14) */}
+        <div className="px-5 pt-4 pb-1 flex items-center gap-1.5 text-xs">
+          <button
+            onClick={() => {
+              setSelectedMovement(null)
+              navigate('/history', { replace: true })
+            }}
+            className="text-accent dark:text-accent-light font-semibold hover:underline"
+          >
+            History
+          </button>
+          <span className="text-zinc-400 dark:text-zinc-600">/</span>
+          <span className="text-zinc-600 dark:text-zinc-400 font-medium truncate">
+            {selectedMovement}
+          </span>
+        </div>
         <Header
           title={selectedMovement}
           subtitle={pr ? `PR: ${pr.value} ${unit} × ${pr.reps}${settings.bodyweight ? ` · ${(pr.value / settings.bodyweight).toFixed(2)}× BW` : ''}` : undefined}
-          rightAction={
-            <button
-              onClick={() => {
-                setSelectedMovement(null)
-                navigate('/history', { replace: true })
-              }}
-              className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-            >
-              Back
-            </button>
-          }
         />
         <div className="px-5 space-y-4">
           <Card>
@@ -143,7 +149,11 @@ export function HistoryPage() {
               History
             </h3>
             {movementHistory.length === 0 ? (
-              <p className="text-sm text-zinc-400 px-1">No logged weights yet.</p>
+              <EmptyState
+                icon="📊"
+                title="No weight data yet"
+                description="Log some sets and your progress will appear here."
+              />
             ) : (
               [...movementHistory].reverse().map((entry, i) => (
                 <div
@@ -334,7 +344,11 @@ export function HistoryPage() {
               Recent Workouts
             </h3>
             {completedWorkouts.length === 0 ? (
-              <p className="text-sm text-zinc-400 px-1">No workouts logged yet. Complete your first workout!</p>
+              <EmptyState
+                icon="🏋️"
+                title="Your story starts here"
+                description="Complete your first workout and it'll show up here."
+              />
             ) : (
               <div className="space-y-2">
                 {completedWorkouts.slice(0, 20).map((log) => (

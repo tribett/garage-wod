@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useProgram } from '@/contexts/ProgramContext'
 import { useWorkoutLogs, useWorkoutLogDispatch } from '@/contexts/WorkoutLogContext'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -18,12 +18,21 @@ import { Accordion } from '@/components/ui/Accordion'
 import { Badge } from '@/components/ui/Badge'
 import { RestTimer } from '@/components/ui/RestTimer'
 import { Confetti } from '@/components/ui/Confetti'
+import { WodScoreInput } from '@/components/ui/WodScoreInput'
 import type { WorkoutLog, ExerciseLog, SetLog, WodResult } from '@/types/workout-log'
 import type { Movement, WodScoring } from '@/types/program'
+
+interface LogLocationState {
+  timerScore?: string
+  timerMode?: string
+  timerElapsed?: number
+}
 
 export function LogPage() {
   const { weekNumber, dayNumber } = useParams<{ weekNumber: string; dayNumber: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const locationState = location.state as LogLocationState | null
   const { program } = useProgram()
   const logs = useWorkoutLogs()
   const dispatch = useWorkoutLogDispatch()
@@ -79,7 +88,42 @@ export function LogPage() {
     }
     return map
   })
-  const [wodScore, setWodScore] = useState(existingLog?.wodResult?.score ?? '')
+  // Per-set weight tracking (Improvement 12)
+  const [perSetMode, setPerSetMode] = useState<Set<string>>(() => {
+    // Initialize from existing log if it had per-set data
+    const set = new Set<string>()
+    if (existingLog?.exercises) {
+      for (const ex of existingLog.exercises) {
+        const weights = ex.sets.map((s) => s.weight).filter(Boolean)
+        if (weights.length > 1 && new Set(weights).size > 1) {
+          set.add(ex.movementId)
+        }
+      }
+    }
+    return set
+  })
+  const [perSetData, setPerSetData] = useState<Map<string, (number | undefined)[]>>(() => {
+    const map = new Map<string, (number | undefined)[]>()
+    if (existingLog?.exercises) {
+      for (const ex of existingLog.exercises) {
+        const weights = ex.sets.map((s) => s.weight).filter(Boolean)
+        if (weights.length > 1 && new Set(weights).size > 1) {
+          map.set(ex.movementId, ex.sets.map((s) => s.weight))
+        }
+      }
+    }
+    return map
+  })
+  // Pre-fill WOD score from timer result (Improvement 1) or existing log
+  const [wodScore, setWodScore] = useState(
+    existingLog?.wodResult?.score ?? locationState?.timerScore ?? '',
+  )
+  // Track structured WOD data for type-appropriate scoring (Improvement 2)
+  const [wodStructured, setWodStructured] = useState<{
+    roundsCompleted?: number
+    extraReps?: number
+    totalTime?: number
+  } | undefined>(undefined)
   const [notes, setNotes] = useState(existingLog?.notes ?? '')
   const [showCelebration, setShowCelebration] = useState(false)
   const [newPRs, setNewPRs] = useState<PR[]>([])
@@ -122,9 +166,10 @@ export function LogPage() {
     triggerHaptic('success')
     setTimeout(() => setShowCelebration(false), 2000)
 
-    // Toast with undo action
+    // Toast with undo action — 10s window with countdown bar (Improvement 4)
     addToast('Workout logged!', 'success', {
-      duration: 5000,
+      duration: 10000,
+      showCountdown: true,
       action: {
         label: 'Undo',
         onClick: () => {
@@ -141,24 +186,52 @@ export function LogPage() {
   const handleSaveDetails = () => {
     const exercises: ExerciseLog[] = []
     for (const mov of allMovements) {
-      const weight = exerciseData.get(mov.id)
-      if (weight !== undefined) {
-        const sets: SetLog[] = []
-        const numSets = mov.sets ?? 1
-        for (let i = 0; i < numSets; i++) {
-          sets.push({
-            weight,
-            reps: typeof mov.reps === 'number' ? mov.reps : undefined,
-            completed: true,
-          })
+      const numSets = mov.sets ?? 1
+      const isPerSet = perSetMode.has(mov.id)
+
+      if (isPerSet) {
+        // Per-set mode: use individual weights per set (Improvement 12)
+        const setWeights = perSetData.get(mov.id)
+        if (setWeights && setWeights.some((w) => w !== undefined)) {
+          const sets: SetLog[] = []
+          for (let i = 0; i < numSets; i++) {
+            const w = setWeights[i]
+            if (w !== undefined) {
+              sets.push({
+                weight: w,
+                reps: typeof mov.reps === 'number' ? mov.reps : undefined,
+                completed: true,
+              })
+            }
+          }
+          if (sets.length > 0) {
+            exercises.push({ movementId: mov.id, movementName: mov.name, sets })
+          }
         }
-        exercises.push({ movementId: mov.id, movementName: mov.name, sets })
+      } else {
+        // Same-weight mode: use single weight for all sets
+        const weight = exerciseData.get(mov.id)
+        if (weight !== undefined) {
+          const sets: SetLog[] = []
+          for (let i = 0; i < numSets; i++) {
+            sets.push({
+              weight,
+              reps: typeof mov.reps === 'number' ? mov.reps : undefined,
+              completed: true,
+            })
+          }
+          exercises.push({ movementId: mov.id, movementName: mov.name, sets })
+        }
       }
     }
 
     let wodResult: WodResult | undefined
     if (wodScoring && wodScore) {
-      wodResult = { type: wodScoring.type, score: wodScore }
+      wodResult = {
+        type: wodScoring.type,
+        score: wodScore,
+        ...wodStructured,
+      }
     }
 
     const log: WorkoutLog = {
@@ -213,6 +286,37 @@ export function LogPage() {
     setExerciseData((prev) => {
       const next = new Map(prev)
       next.set(movId, value)
+      return next
+    })
+  }
+
+  const togglePerSetMode = (movId: string, numSets: number) => {
+    setPerSetMode((prev) => {
+      const next = new Set(prev)
+      if (next.has(movId)) {
+        next.delete(movId)
+      } else {
+        next.add(movId)
+        // Initialize per-set data from single weight if available
+        if (!perSetData.has(movId)) {
+          const singleWeight = exerciseData.get(movId)
+          setPerSetData((pd) => {
+            const nextPd = new Map(pd)
+            nextPd.set(movId, Array(numSets).fill(singleWeight))
+            return nextPd
+          })
+        }
+      }
+      return next
+    })
+  }
+
+  const updatePerSetWeight = (movId: string, setIdx: number, value: number | undefined) => {
+    setPerSetData((prev) => {
+      const next = new Map(prev)
+      const arr = [...(next.get(movId) ?? [])]
+      arr[setIdx] = value
+      next.set(movId, arr)
       return next
     })
   }
@@ -287,17 +391,82 @@ export function LogPage() {
             className="animate-slide-up delay-1"
           >
             <div className="space-y-3 pb-3">
-              {allMovements.map((mov: Movement) => (
-                <NumberInput
-                  key={mov.id}
-                  label={mov.name}
-                  value={exerciseData.get(mov.id)}
-                  onChange={(v) => updateWeight(mov.id, v)}
-                  placeholder={previousWeights.has(mov.id) ? String(previousWeights.get(mov.id)) : undefined}
-                  step={step}
-                  unit={settings.weightUnit}
-                />
-              ))}
+              {/* Quick Re-Log (Improvement 13) */}
+              {previousWeights.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    for (const mov of allMovements) {
+                      const prev = previousWeights.get(mov.id)
+                      if (prev !== undefined) {
+                        updateWeight(mov.id, prev)
+                      }
+                    }
+                    addToast('Last weights loaded', 'info')
+                  }}
+                  className="
+                    w-full py-2 px-3 rounded-xl text-xs font-semibold
+                    bg-accent/5 text-accent border border-accent/20
+                    dark:bg-accent/10 dark:text-accent-light dark:border-accent/30
+                    hover:bg-accent/10 dark:hover:bg-accent/20
+                    transition-colors
+                  "
+                >
+                  ↻ Use Last Weights
+                </button>
+              )}
+              {allMovements.map((mov: Movement) => {
+                const numSets = mov.sets ?? 1
+                const isPerSet = perSetMode.has(mov.id)
+
+                return (
+                  <div key={mov.id}>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        {mov.name}
+                      </label>
+                      {numSets > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => togglePerSetMode(mov.id, numSets)}
+                          className={`
+                            text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors
+                            ${isPerSet
+                              ? 'bg-accent/10 text-accent dark:bg-accent/20 dark:text-accent-light'
+                              : 'bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500'
+                            }
+                          `}
+                        >
+                          {isPerSet ? 'Per Set ✓' : 'Per Set'}
+                        </button>
+                      )}
+                    </div>
+                    {isPerSet ? (
+                      <div className="space-y-1.5">
+                        {Array.from({ length: numSets }, (_, i) => (
+                          <NumberInput
+                            key={`${mov.id}-set-${i}`}
+                            label={`Set ${i + 1}`}
+                            value={perSetData.get(mov.id)?.[i]}
+                            onChange={(v) => updatePerSetWeight(mov.id, i, v)}
+                            placeholder={previousWeights.has(mov.id) ? String(previousWeights.get(mov.id)) : undefined}
+                            step={step}
+                            unit={settings.weightUnit}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <NumberInput
+                        value={exerciseData.get(mov.id)}
+                        onChange={(v) => updateWeight(mov.id, v)}
+                        placeholder={previousWeights.has(mov.id) ? String(previousWeights.get(mov.id)) : undefined}
+                        step={step}
+                        unit={settings.weightUnit}
+                      />
+                    )}
+                  </div>
+                )
+              })}
               {/* Rest timer for between sets */}
               <RestTimer />
             </div>
@@ -321,32 +490,22 @@ export function LogPage() {
           />
         </Card>
 
-        {/* Level 2: Detailed Log */}
+        {/* Level 2: Structured WOD Score (Improvement 2) */}
         {wodScoring && (
           <Accordion
             title="WOD Score"
-            badge={<Badge variant="muted">Optional</Badge>}
+            badge={wodScore ? <Badge variant="accent">{wodScore}</Badge> : <Badge variant="muted">Optional</Badge>}
             className="animate-slide-up delay-2"
           >
             <div className="space-y-3 pb-3">
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                  Score ({wodScoring.type === 'amrap' ? 'rounds + reps' : wodScoring.type === 'forTime' ? 'time' : 'result'})
-                </label>
-                <input
-                  type="text"
-                  value={wodScore}
-                  onChange={(e) => setWodScore(e.target.value)}
-                  placeholder={wodScoring.type === 'amrap' ? 'e.g., 5+3' : wodScoring.type === 'forTime' ? 'e.g., 8:42' : 'Score'}
-                  className="
-                    w-full h-10 px-3 rounded-xl text-sm
-                    bg-zinc-50 border border-zinc-200 text-zinc-900
-                    dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50
-                    placeholder:text-zinc-400 dark:placeholder:text-zinc-600
-                    focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
-                  "
-                />
-              </div>
+              <WodScoreInput
+                wodType={wodScoring.type}
+                value={wodScore}
+                onChange={(score, structured) => {
+                  setWodScore(score)
+                  setWodStructured(structured)
+                }}
+              />
             </div>
           </Accordion>
         )}

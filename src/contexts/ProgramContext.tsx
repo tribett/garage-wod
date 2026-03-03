@@ -25,6 +25,7 @@ type ProgramAction =
   | { type: 'ADVANCE_DAY' }
   | { type: 'LOAD_PROGRAM'; payload: Program }
   | { type: 'RESET_POSITION' }
+  | { type: 'RELOAD_FROM_STORAGE' }
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -125,6 +126,9 @@ function programReducer(state: ProgramState, action: ProgramAction): ProgramStat
 
     case 'RESET_POSITION':
       return { ...state, position: { week: 1, day: 1 } }
+
+    case 'RELOAD_FROM_STORAGE':
+      return initProgramState()
 
     default:
       return state

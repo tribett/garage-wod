@@ -1,4 +1,5 @@
 import { CURRENT_SCHEMA_VERSION, STORAGE_KEYS } from './constants'
+import { generateBackupFilename } from './backup-filename'
 
 interface StorageMeta {
   schemaVersion: number
@@ -96,7 +97,7 @@ export const storage = {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = 'grgwod-backup.json'
+      a.download = generateBackupFilename()
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {

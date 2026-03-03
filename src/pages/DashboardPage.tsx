@@ -10,6 +10,7 @@ import { getWeeklyVolume } from '@/lib/volume-calculator'
 import { findNextWorkout } from '@/lib/next-workout'
 import { formatShortDate } from '@/lib/date-utils'
 import { Header } from '@/components/layout/Header'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -116,6 +117,8 @@ function WeekDots({
   weekNumber: number
   logs: { weekNumber: number; dayNumber: number; completed: boolean }[]
 }) {
+  const navigate = useNavigate()
+
   return (
     <div className="animate-fade-in delay-2">
       <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
@@ -133,10 +136,15 @@ function WeekDots({
           const isFuture = day.dayNumber > currentDayNumber
 
           return (
-            <div key={day.dayNumber} className="flex flex-col items-center gap-1">
+            <button
+              key={day.dayNumber}
+              onClick={() => navigate(`/workout/${weekNumber}/${day.dayNumber}`)}
+              className="flex flex-col items-center gap-1 group"
+            >
               <div
                 className={`
                   w-3 h-3 rounded-full transition-all duration-300
+                  group-hover:scale-125 group-active:scale-95
                   ${isCompleted
                     ? 'bg-accent dark:bg-accent-dark scale-110'
                     : isCurrent
@@ -146,17 +154,17 @@ function WeekDots({
                 `}
               />
               <span
-                className={`text-[10px] font-medium ${
-                  isCurrent
+                className={`text-[10px] font-medium transition-colors
+                  ${isCurrent
                     ? 'text-accent dark:text-accent-light'
                     : isFuture
-                      ? 'text-zinc-400 dark:text-zinc-600'
-                      : 'text-zinc-500 dark:text-zinc-400'
-                }`}
+                      ? 'text-zinc-400 dark:text-zinc-600 group-hover:text-zinc-500 dark:group-hover:text-zinc-500'
+                      : 'text-zinc-500 dark:text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-zinc-300'
+                  }`}
               >
                 {day.name.slice(0, 3)}
               </span>
-            </div>
+            </button>
           )
         })}
       </div>
@@ -310,14 +318,52 @@ function TodayWorkoutCard({
           Start Workout
         </Button>
       ) : (
-        <Button
-          variant="secondary"
-          size="lg"
-          fullWidth
-          onClick={() => navigate(`/workout/${weekNumber}/${day.dayNumber}`)}
-        >
-          View Workout
-        </Button>
+        <>
+          <Button
+            variant="secondary"
+            size="lg"
+            fullWidth
+            onClick={() => navigate(`/workout/${weekNumber}/${day.dayNumber}`)}
+          >
+            View Workout
+          </Button>
+
+          {/* Next workout preview after completion (Improvement 9) */}
+          {nextWorkout && (() => {
+            const nextWod = getWodBlock(nextWorkout.day)
+            const nextWodLabel = formatWodType(nextWod?.scoring)
+            const nextBadgeVariant = wodTypeBadgeVariant(nextWod?.scoring)
+            return (
+              <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">
+                  Up next
+                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                      {nextWod?.name ?? nextWorkout.day.name}
+                    </p>
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                      Week {nextWorkout.weekNumber} · Day {nextWorkout.day.dayNumber}
+                    </p>
+                  </div>
+                  <Badge variant={nextBadgeVariant}>{nextWodLabel}</Badge>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  fullWidth
+                  className="mt-2"
+                  onClick={() =>
+                    navigate(`/workout/${nextWorkout.weekNumber}/${nextWorkout.day.dayNumber}`)
+                  }
+                >
+                  Preview →
+                </Button>
+              </div>
+            )
+          })()}
+        </>
       )}
     </Card>
   )
@@ -558,8 +604,17 @@ export function DashboardPage() {
 
   if (!program) {
     return (
-      <div className="px-5 py-12 text-center">
-        <p className="text-zinc-500 dark:text-zinc-400">No program loaded.</p>
+      <div className="px-5 py-8">
+        <Header title="GRGWOD" />
+        <EmptyState
+          icon="💪"
+          title="Ready to start?"
+          description="Load a program in Settings to begin your training."
+          action={{
+            label: 'Go to Settings',
+            onClick: () => navigate('/settings'),
+          }}
+        />
       </div>
     )
   }

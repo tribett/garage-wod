@@ -11,6 +11,7 @@ import { STORAGE_KEYS } from '@/lib/constants'
 
 const SettingsContext = createContext<Settings | null>(null)
 const UpdateSettingsContext = createContext<((partial: Partial<Settings>) => void) | null>(null)
+const ReplaceSettingsContext = createContext<((settings: Settings) => void) | null>(null)
 
 // ---------------------------------------------------------------------------
 // Hooks
@@ -28,6 +29,14 @@ export function useUpdateSettings(): (partial: Partial<Settings>) => void {
   const ctx = useContext(UpdateSettingsContext)
   if (ctx === null) {
     throw new Error('useUpdateSettings must be used within a SettingsProvider')
+  }
+  return ctx
+}
+
+export function useReplaceSettings(): (settings: Settings) => void {
+  const ctx = useContext(ReplaceSettingsContext)
+  if (ctx === null) {
+    throw new Error('useReplaceSettings must be used within a SettingsProvider')
   }
   return ctx
 }
@@ -87,10 +96,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => ({ ...prev, ...partial }))
   }, [])
 
+  const replaceSettings = useCallback((newSettings: Settings) => {
+    setSettings(newSettings)
+  }, [])
+
   return (
     <SettingsContext value={settings}>
       <UpdateSettingsContext value={updateSettings}>
-        {children}
+        <ReplaceSettingsContext value={replaceSettings}>
+          {children}
+        </ReplaceSettingsContext>
       </UpdateSettingsContext>
     </SettingsContext>
   )

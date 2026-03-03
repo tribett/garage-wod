@@ -13,6 +13,7 @@ type WorkoutLogAction =
   | { type: 'UPDATE_LOG'; payload: WorkoutLog }
   | { type: 'DELETE_LOG'; payload: string }
   | { type: 'RESET_ALL' }
+  | { type: 'REPLACE_ALL'; payload: WorkoutLog[] }
 
 // ---------------------------------------------------------------------------
 // Reducer
@@ -36,6 +37,9 @@ function workoutLogReducer(
 
     case 'RESET_ALL':
       return []
+
+    case 'REPLACE_ALL':
+      return action.payload
 
     default:
       return state

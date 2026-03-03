@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useProgram } from '@/contexts/ProgramContext'
 import { formatMovementLine } from '@/lib/format-movement'
+import { getWeekDays } from '@/lib/get-week-days'
 import { getMovementVideoId } from '@/lib/movement-videos'
 import { getScalingOptions } from '@/lib/movement-scaling'
 import { Badge } from '@/components/ui/Badge'
@@ -238,6 +239,7 @@ export function WorkoutPage() {
   const weekNumber = Number(params.weekNumber)
   const dayNumber = Number(params.dayNumber)
   const day = findDay(program, weekNumber, dayNumber)
+  const weekDays = getWeekDays(program, weekNumber)
 
   if (!day) {
     return (
@@ -289,6 +291,28 @@ export function WorkoutPage() {
           )}
         </div>
       </div>
+
+      {/* Day selector — navigate between days in this week */}
+      {weekDays.length > 1 && (
+        <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
+          {weekDays.map((wd) => (
+            <button
+              key={wd.dayNumber}
+              onClick={() => navigate(`/workout/${weekNumber}/${wd.dayNumber}`)}
+              className={`
+                shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all
+                ${wd.dayNumber === dayNumber
+                  ? 'bg-accent text-white dark:bg-accent-dark'
+                  : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                }
+              `}
+            >
+              D{wd.dayNumber}
+              <span className="ml-1 font-normal">{wd.name.length > 12 ? wd.name.slice(0, 12) + '\u2026' : wd.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Coach notes */}
       {day.coachNotes && (

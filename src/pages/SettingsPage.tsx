@@ -1,11 +1,19 @@
 import { useRef, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSettings, useUpdateSettings } from '@/contexts/SettingsContext'
+import { useSettings, useUpdateSettings, useReplaceSettings } from '@/contexts/SettingsContext'
 import { useProgramDispatch } from '@/contexts/ProgramContext'
 import { useWorkoutLogDispatch } from '@/contexts/WorkoutLogContext'
+import { useToast } from '@/contexts/ToastContext'
 import { validateProgram } from '@/lib/schema-validator'
 import { storage } from '@/lib/storage'
 import { checkStorageQuota } from '@/lib/storage-quota'
+import { generateBackupFilename } from '@/lib/backup-filename'
+import { previewImport } from '@/lib/import-preview'
+import type { ImportPreview } from '@/lib/import-preview'
+import { STORAGE_KEYS } from '@/lib/constants'
+import { DEFAULT_SETTINGS } from '@/types/settings'
+import type { Settings } from '@/types/settings'
+import type { WorkoutLog } from '@/types/workout-log'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Toggle } from '@/components/ui/Toggle'
@@ -27,8 +35,10 @@ export function SettingsPage() {
   const navigate = useNavigate()
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
+  const replaceSettings = useReplaceSettings()
   const programDispatch = useProgramDispatch()
   const logDispatch = useWorkoutLogDispatch()
+  const { addToast } = useToast()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const restoreInputRef = useRef<HTMLInputElement>(null)
@@ -37,6 +47,7 @@ export function SettingsPage() {
   const [showResetModal, setShowResetModal] = useState(false)
   const [showRestoreModal, setShowRestoreModal] = useState(false)
   const [pendingRestore, setPendingRestore] = useState<string | null>(null)
+  const [importPreviewData, setImportPreviewData] = useState<ImportPreview | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null)
 
@@ -81,7 +92,7 @@ export function SettingsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `grgwod-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = generateBackupFilename()
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -95,9 +106,13 @@ export function SettingsPage() {
 
     try {
       const text = await file.text()
-      // Validate it's parseable JSON before showing the modal
-      JSON.parse(text)
+      const preview = previewImport(text)
+      if (!preview) {
+        setRestoreError('Invalid backup file. Please select a valid backup.')
+        return
+      }
       setPendingRestore(text)
+      setImportPreviewData(preview)
       setShowRestoreModal(true)
     } catch {
       setRestoreError('Invalid JSON file. Please select a valid backup.')
@@ -112,11 +127,19 @@ export function SettingsPage() {
     const result = storage.importAll(pendingRestore)
     setShowRestoreModal(false)
     setPendingRestore(null)
+    setImportPreviewData(null)
 
     if (result.success) {
-      setRestoreSuccess('Backup restored! Reloading...')
-      // Reload after a short delay so the user sees the success message
-      setTimeout(() => window.location.reload(), 800)
+      // Hot-swap: re-read all contexts from localStorage instead of reloading
+      const restoredLogs = storage.load<WorkoutLog[]>(STORAGE_KEYS.WORKOUT_LOGS, [])
+      logDispatch({ type: 'REPLACE_ALL', payload: restoredLogs })
+
+      const restoredSettings = storage.load<Settings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
+      replaceSettings(restoredSettings)
+
+      programDispatch({ type: 'RELOAD_FROM_STORAGE' })
+
+      addToast('Backup restored!', 'success')
     } else {
       setRestoreError(result.error ?? 'Failed to restore backup.')
     }
@@ -442,16 +465,38 @@ export function SettingsPage() {
         </div>
       </Modal>
 
-      {/* Restore Confirmation Modal */}
-      <Modal open={showRestoreModal} onClose={() => { setShowRestoreModal(false); setPendingRestore(null) }}>
+      {/* Restore Confirmation Modal — with import preview (Improvement 6) */}
+      <Modal open={showRestoreModal} onClose={() => { setShowRestoreModal(false); setPendingRestore(null); setImportPreviewData(null) }}>
         <div className="space-y-4">
           <h2 className="font-display font-bold text-lg">Restore from Backup?</h2>
+          {importPreviewData && (
+            <div className="rounded-xl bg-zinc-50 dark:bg-zinc-800 p-3 space-y-1.5">
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
+                Backup Contents
+              </p>
+              <div className="space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
+                <p>
+                  <span className="font-medium">{importPreviewData.logCount}</span> workout log{importPreviewData.logCount !== 1 ? 's' : ''}
+                </p>
+                {importPreviewData.programName && (
+                  <p>
+                    Program: <span className="font-medium">{importPreviewData.programName}</span>
+                  </p>
+                )}
+                {importPreviewData.hasCustomPrograms && !importPreviewData.programName && (
+                  <p>Custom program data included</p>
+                )}
+                <p>
+                  Settings: <span className="font-medium">{importPreviewData.settingsPresent ? 'included' : 'not included'}</span>
+                </p>
+              </div>
+            </div>
+          )}
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            This will replace your current settings, workout logs, and program data with the
-            backup. The page will reload after restoring.
+            This will replace your current settings, workout logs, and program data with the backup.
           </p>
           <div className="flex gap-3">
-            <Button variant="ghost" fullWidth onClick={() => { setShowRestoreModal(false); setPendingRestore(null) }}>
+            <Button variant="ghost" fullWidth onClick={() => { setShowRestoreModal(false); setPendingRestore(null); setImportPreviewData(null) }}>
               Cancel
             </Button>
             <Button fullWidth onClick={handleRestoreConfirm}>
