@@ -17,6 +17,8 @@ interface LocationState {
   config?: TimerConfig
   weekNumber?: number
   dayNumber?: number
+  wodName?: string
+  movements?: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -246,11 +248,16 @@ function ActiveTimer({
   config,
   weekNumber,
   dayNumber,
+  wodName,
+  movements,
 }: {
   config: TimerConfig
   weekNumber?: number
   dayNumber?: number
+  wodName?: string
+  movements?: string[]
 }) {
+  const [showMovements, setShowMovements] = useState(true)
   const navigate = useNavigate()
   const settings = useSettings()
   const { preload, playBeep, playLongBeep, playCelebration } = useAudio()
@@ -364,6 +371,35 @@ function ActiveTimer({
           </svg>
         </button>
       </div>
+
+      {/* Movement list (collapsible) */}
+      {movements && movements.length > 0 && (
+        <div className="shrink-0 px-5">
+          <button
+            onClick={() => setShowMovements((v) => !v)}
+            className="w-full flex items-center justify-between py-2 group"
+          >
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              {wodName || 'Workout'}
+            </span>
+            <svg
+              className={`w-4 h-4 text-zinc-600 transition-transform duration-200 ${showMovements ? 'rotate-180' : ''}`}
+              fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
+          {showMovements && (
+            <div className="pb-3 space-y-1 animate-fade-in max-h-40 overflow-y-auto">
+              {movements.map((line, i) => (
+                <p key={i} className="text-sm text-zinc-400 leading-snug">
+                  {line}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Timer display area — tappable when running */}
       <div
@@ -540,6 +576,8 @@ export function TimerPage() {
       config={config}
       weekNumber={locationState?.weekNumber}
       dayNumber={locationState?.dayNumber}
+      wodName={locationState?.wodName}
+      movements={locationState?.movements}
     />
   )
 }

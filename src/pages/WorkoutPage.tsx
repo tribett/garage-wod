@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useProgram } from '@/contexts/ProgramContext'
+import { formatMovementLine } from '@/lib/format-movement'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -275,7 +276,15 @@ export function WorkoutPage() {
             variant="primary"
             size="lg"
             fullWidth
-            onClick={() => navigate('/timer', { state: { config: timerConfig, weekNumber, dayNumber } })}
+            onClick={() => navigate('/timer', {
+              state: {
+                config: timerConfig,
+                weekNumber,
+                dayNumber,
+                wodName: wodBlock?.name,
+                movements: wodBlock?.movements.map(formatMovementLine) ?? [],
+              },
+            })}
           >
             Start Timer
           </Button>
