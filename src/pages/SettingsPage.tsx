@@ -205,7 +205,54 @@ export function SettingsPage() {
                 />
               </div>
             </Card>
+
+            <Card>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium">Bodyweight</span>
+                  <p className="text-xs text-zinc-400">Used for BW-ratio calculations</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={settings.bodyweight ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value ? parseFloat(e.target.value) : undefined
+                      updateSettings({ bodyweight: val })
+                    }}
+                    placeholder="—"
+                    className="
+                      w-16 h-8 px-2 text-right text-sm font-semibold rounded-lg
+                      bg-zinc-50 border border-zinc-200 text-zinc-900
+                      dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50
+                      placeholder:text-zinc-300 dark:placeholder:text-zinc-600
+                      focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
+                    "
+                  />
+                  <span className="text-xs text-zinc-400">{settings.weightUnit}</span>
+                </div>
+              </div>
+            </Card>
           </div>
+        </section>
+
+        {/* Reference */}
+        <section>
+          <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 mb-2 px-1">
+            Reference
+          </h3>
+          <Card interactive onClick={() => navigate('/glossary')}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">CrossFit Glossary</p>
+                <p className="text-xs text-zinc-400">Common CrossFit terms & abbreviations</p>
+              </div>
+              <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </div>
+          </Card>
         </section>
 
         {/* Custom Program */}

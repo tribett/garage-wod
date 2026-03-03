@@ -4,6 +4,7 @@ import { useSettings } from '@/contexts/SettingsContext'
 import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { getAllPRs, getMovementHistory } from '@/lib/pr-calculator'
 import { buildPRTimeline } from '@/lib/pr-timeline'
+import { estimate1RM, getPercentages } from '@/lib/one-rm-calculator'
 import { searchWorkoutHistory } from '@/lib/wod-history'
 import { formatDate, formatShortDate } from '@/lib/date-utils'
 import { Header } from '@/components/layout/Header'
@@ -70,7 +71,7 @@ export function HistoryPage() {
       <div className="animate-fade-in">
         <Header
           title={selectedMovement}
-          subtitle={pr ? `PR: ${pr.value} ${unit} × ${pr.reps}` : undefined}
+          subtitle={pr ? `PR: ${pr.value} ${unit} × ${pr.reps}${settings.bodyweight ? ` · ${(pr.value / settings.bodyweight).toFixed(2)}× BW` : ''}` : undefined}
           rightAction={
             <button
               onClick={() => {
@@ -103,6 +104,39 @@ export function HistoryPage() {
               </Card>
             </div>
           )}
+
+          {/* 1RM Estimate + Percentage Table */}
+          {pr && pr.reps > 0 && (() => {
+            const oneRM = estimate1RM(pr.value, pr.reps)
+            if (oneRM <= 0) return null
+            const percentages = getPercentages(oneRM)
+
+            return (
+              <div>
+                <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 px-1 mb-2">
+                  Estimated 1RM
+                </h3>
+                <Card padding="md">
+                  <div className="text-center mb-3">
+                    <p className="font-display font-extrabold text-2xl text-accent dark:text-accent-light">
+                      {oneRM} {unit}
+                    </p>
+                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">
+                      Based on {pr.value} {unit} × {pr.reps} rep{pr.reps !== 1 ? 's' : ''} (Epley)
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-x-3 gap-y-1.5">
+                    {percentages.map((p) => (
+                      <div key={p.percentage} className="flex items-center justify-between">
+                        <span className="text-[10px] font-medium text-zinc-400">{p.percentage}%</span>
+                        <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{p.weight}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )
+          })()}
 
           <div className="space-y-2">
             <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 px-1">

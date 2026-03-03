@@ -4,6 +4,7 @@ import { useProgram } from '@/contexts/ProgramContext'
 import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { calculateStreak, getWorkoutsThisWeek, getWorkoutsThisMonth, getTotalWodCount } from '@/lib/streak-calculator'
+import { getRestDayMessage } from '@/lib/rest-day-guidance'
 import { getRecentPRs } from '@/lib/pr-calculator'
 import { getWeeklyVolume } from '@/lib/volume-calculator'
 import { findNextWorkout } from '@/lib/next-workout'
@@ -13,7 +14,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
-import type { Day, WodScoring } from '@/types/program'
+import type { Day, DayIntent, WodScoring } from '@/types/program'
 import type { PR } from '@/lib/pr-calculator'
 import type { WeeklyVolume } from '@/lib/volume-calculator'
 
@@ -50,6 +51,14 @@ function wodTypeBadgeVariant(scoring: WodScoring | undefined) {
     default:
       return 'default' as const
   }
+}
+
+const INTENT_BADGE: Record<DayIntent, { label: string; variant: 'default' | 'accent' | 'success' | 'warning' | 'muted' }> = {
+  heavy: { label: 'Heavy', variant: 'warning' },
+  recovery: { label: 'Recovery', variant: 'success' },
+  conditioning: { label: 'Conditioning', variant: 'accent' },
+  skill: { label: 'Skill', variant: 'default' },
+  benchmark: { label: 'Benchmark', variant: 'accent' },
 }
 
 // ---------------------------------------------------------------------------
@@ -245,11 +254,16 @@ function TodayWorkoutCard({
             {wodBlock?.name ?? day.name}
           </h3>
         </div>
-        {isCompleted ? (
-          <Badge variant="success">Completed</Badge>
-        ) : (
-          <Badge variant={badgeVariant}>{wodLabel}</Badge>
-        )}
+        <div className="flex items-center gap-1.5">
+          {day.intent && (
+            <Badge variant={INTENT_BADGE[day.intent].variant}>{INTENT_BADGE[day.intent].label}</Badge>
+          )}
+          {isCompleted ? (
+            <Badge variant="success">Completed</Badge>
+          ) : (
+            <Badge variant={badgeVariant}>{wodLabel}</Badge>
+          )}
+        </div>
       </div>
 
       {/* Block previews — show all blocks (strength, skill, WOD) */}
@@ -529,6 +543,19 @@ export function DashboardPage() {
     [program, position, logs],
   )
 
+  const lastWorkoutDate = useMemo(() => {
+    const completed = logs.filter((l) => l.completed)
+    if (completed.length === 0) return null
+    return completed.sort((a, b) =>
+      new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    )[0].completedAt
+  }, [logs])
+
+  const restDayMessage = useMemo(
+    () => getRestDayMessage(streak, lastWorkoutDate),
+    [streak, lastWorkoutDate],
+  )
+
   if (!program) {
     return (
       <div className="px-5 py-12 text-center">
@@ -569,18 +596,27 @@ export function DashboardPage() {
           nextWorkout={nextWorkout}
         />
 
-        {/* Daily WOD */}
-        <Card padding="md" className="animate-slide-up delay-4">
+        {/* Rest day guidance */}
+        {!currentDay && restDayMessage && (
+          <Card padding="sm" className="animate-fade-in delay-3 border-l-4 border-l-emerald-400/50 dark:border-l-emerald-600/50">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+              {restDayMessage}
+            </p>
+          </Card>
+        )}
+
+        {/* Daily WOD — prominent quick-log card */}
+        <Card padding="md" className="animate-slide-up delay-4 bg-accent/[0.03] dark:bg-accent/[0.06] border border-accent/10 dark:border-accent/15">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
                 Log a WOD
               </p>
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
                 CrossFit.com daily WOD or your own
               </p>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => navigate('/wod')}>
+            <Button size="sm" onClick={() => navigate('/wod')}>
               Log WOD
             </Button>
           </div>

@@ -4,6 +4,7 @@ export interface Settings {
   weightUnit: 'lbs' | 'kg'
   keepScreenAwake: boolean
   autoBackup: boolean
+  bodyweight?: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {

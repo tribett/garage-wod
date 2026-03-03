@@ -1,11 +1,23 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useProgram } from '@/contexts/ProgramContext'
 import { formatMovementLine } from '@/lib/format-movement'
+import { getMovementVideoId } from '@/lib/movement-videos'
+import { getScalingOptions } from '@/lib/movement-scaling'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import type { BlockType, Day, Movement, WodScoring, WorkoutBlock } from '@/types/program'
+import { MovementDetailSheet } from '@/components/ui/MovementDetailSheet'
+import type { BlockType, Day, DayIntent, Movement, WodScoring, WorkoutBlock } from '@/types/program'
 import type { TimerConfig, TimerMode } from '@/types/timer'
+
+const INTENT_CONFIG: Record<DayIntent, { label: string; variant: 'default' | 'accent' | 'success' | 'warning' | 'muted' }> = {
+  heavy: { label: 'Heavy', variant: 'warning' },
+  recovery: { label: 'Recovery', variant: 'success' },
+  conditioning: { label: 'Conditioning', variant: 'accent' },
+  skill: { label: 'Skill', variant: 'default' },
+  benchmark: { label: 'Benchmark', variant: 'accent' },
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,7 +118,7 @@ function scoringToTimerConfig(scoring: WodScoring): TimerConfig {
 // Movement Display
 // ---------------------------------------------------------------------------
 
-function MovementRow({ movement, showRest }: { movement: Movement; showRest: boolean }) {
+function MovementRow({ movement, showRest, onTap }: { movement: Movement; showRest: boolean; onTap?: () => void }) {
   const parts: string[] = []
 
   // Build the primary descriptor
@@ -125,6 +137,7 @@ function MovementRow({ movement, showRest }: { movement: Movement; showRest: boo
   }
 
   const descriptor = parts.join(' ')
+  const hasDetail = !!(getMovementVideoId(movement.name) || getScalingOptions(movement.name))
 
   return (
     <>
@@ -132,7 +145,17 @@ function MovementRow({ movement, showRest }: { movement: Movement; showRest: boo
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
             {descriptor && <span className="font-semibold text-accent dark:text-accent-light mr-1.5">{descriptor}</span>}
-            {movement.name}
+            {hasDetail ? (
+              <button
+                type="button"
+                onClick={onTap}
+                className="underline decoration-dotted underline-offset-2 hover:text-accent dark:hover:text-accent-light transition-colors"
+              >
+                {movement.name}
+              </button>
+            ) : (
+              movement.name
+            )}
           </span>
           {movement.weight && (
             <span className="text-xs text-zinc-500 dark:text-zinc-400">({movement.weight})</span>
@@ -160,7 +183,7 @@ function MovementRow({ movement, showRest }: { movement: Movement; showRest: boo
 // Block Display
 // ---------------------------------------------------------------------------
 
-function BlockCard({ block }: { block: WorkoutBlock }) {
+function BlockCard({ block, onMovementTap }: { block: WorkoutBlock; onMovementTap: (movement: Movement) => void }) {
   return (
     <Card padding="md" className="animate-slide-up">
       {/* Block header */}
@@ -194,6 +217,7 @@ function BlockCard({ block }: { block: WorkoutBlock }) {
             key={movement.id}
             movement={movement}
             showRest={i < block.movements.length - 1}
+            onTap={() => onMovementTap(movement)}
           />
         ))}
       </div>
@@ -209,6 +233,7 @@ export function WorkoutPage() {
   const params = useParams<{ weekNumber: string; dayNumber: string }>()
   const navigate = useNavigate()
   const { program } = useProgram()
+  const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null)
 
   const weekNumber = Number(params.weekNumber)
   const dayNumber = Number(params.dayNumber)
@@ -255,16 +280,35 @@ export function WorkoutPage() {
         <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-0.5">
           Week {weekNumber} &middot; Day {dayNumber}
         </p>
-        <h1 className="font-display font-extrabold text-2xl text-zinc-900 dark:text-zinc-50 tracking-tight">
-          {day.name}
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="font-display font-extrabold text-2xl text-zinc-900 dark:text-zinc-50 tracking-tight">
+            {day.name}
+          </h1>
+          {day.intent && (
+            <Badge variant={INTENT_CONFIG[day.intent].variant}>{INTENT_CONFIG[day.intent].label}</Badge>
+          )}
+        </div>
       </div>
+
+      {/* Coach notes */}
+      {day.coachNotes && (
+        <Card padding="sm" className="mb-5 border-l-4 border-l-accent/40">
+          <div className="flex items-start gap-2">
+            <svg className="w-4 h-4 text-accent dark:text-accent-light mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+            </svg>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+              {day.coachNotes}
+            </p>
+          </div>
+        </Card>
+      )}
 
       {/* Blocks */}
       <div className="space-y-4 mb-8">
         {sortedBlocks.map((block, i) => (
           <div key={`${block.type}-${i}`} className={`delay-${Math.min(i + 1, 5)}`}>
-            <BlockCard block={block} />
+            <BlockCard block={block} onMovementTap={setSelectedMovement} />
           </div>
         ))}
       </div>
@@ -298,6 +342,15 @@ export function WorkoutPage() {
           Log Workout
         </Button>
       </div>
+
+      {/* Movement detail bottom sheet */}
+      <MovementDetailSheet
+        open={!!selectedMovement}
+        onClose={() => setSelectedMovement(null)}
+        movementName={selectedMovement?.name ?? ''}
+        videoId={selectedMovement ? getMovementVideoId(selectedMovement.name) : null}
+        scalingOptions={selectedMovement ? getScalingOptions(selectedMovement.name) : null}
+      />
     </div>
   )
 }

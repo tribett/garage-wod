@@ -20,10 +20,14 @@ export interface Week {
   days: Day[]
 }
 
+export type DayIntent = 'heavy' | 'recovery' | 'conditioning' | 'skill' | 'benchmark'
+
 export interface Day {
   dayNumber: number
   name: string
   blocks: WorkoutBlock[]
+  coachNotes?: string
+  intent?: DayIntent
 }
 
 export type BlockType = 'warmup' | 'skill' | 'wod' | 'cooldown'

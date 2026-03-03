@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProgram } from '@/contexts/ProgramContext'
 import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
+import { exportProgramJSON } from '@/lib/program-export'
 import { Header } from '@/components/layout/Header'
 import { Accordion } from '@/components/ui/Accordion'
 import { Badge } from '@/components/ui/Badge'
@@ -314,13 +315,30 @@ export function ProgramPage() {
         ))}
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-2">
         <Button
           variant="secondary"
           fullWidth
           onClick={() => navigate('/program/create')}
         >
           Create New Program
+        </Button>
+        <Button
+          variant="ghost"
+          fullWidth
+          onClick={() => {
+            const json = exportProgramJSON(program)
+            if (!json) return
+            const blob = new Blob([json], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${program.name.replace(/\s+/g, '-').toLowerCase()}.json`
+            a.click()
+            URL.revokeObjectURL(url)
+          }}
+        >
+          Export Program JSON
         </Button>
       </div>
     </div>

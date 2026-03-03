@@ -6,12 +6,14 @@ import { generateId } from '@/lib/id'
 import { storage } from '@/lib/storage'
 import { STANDALONE_PROGRAM_ID } from '@/lib/constants'
 import { getWodScoreHistory } from '@/lib/wod-history'
+import { buildWodScoreTimeline } from '@/lib/wod-score-timeline'
 import { formatShortDate } from '@/lib/date-utils'
 import { BENCHMARK_WODS, type BenchmarkWod } from '@/data/benchmark-wods'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { SimpleChart } from '@/components/history/SimpleChart'
 import { ShareResultCard } from '@/components/ShareResultCard'
 import type { WorkoutLog, WodResult } from '@/types/workout-log'
 import type { WodType } from '@/types/program'
@@ -92,6 +94,12 @@ export function WodPage() {
   // Score history for current WOD title
   const scoreHistory = useMemo(
     () => (title.trim() ? getWodScoreHistory(logs, title.trim()) : []),
+    [logs, title],
+  )
+
+  // Score timeline for chart (only for WODs with 2+ attempts)
+  const scoreTimeline = useMemo(
+    () => (title.trim() ? buildWodScoreTimeline(logs, title.trim()) : []),
     [logs, title],
   )
 
@@ -309,6 +317,21 @@ export function WodPage() {
                 </p>
               )}
             </div>
+          </Card>
+        )}
+
+        {/* Score Timeline Chart (2+ attempts) */}
+        {scoreTimeline.length >= 2 && (
+          <Card padding="md" className="animate-fade-in">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
+              Score Trend
+            </h3>
+            <SimpleChart
+              data={scoreTimeline.map((p) => ({
+                label: formatShortDate(p.date),
+                value: p.numericScore,
+              }))}
+            />
           </Card>
         )}
 
