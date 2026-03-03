@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button'
 import { NumberInput } from '@/components/ui/NumberInput'
 import { Accordion } from '@/components/ui/Accordion'
 import { Badge } from '@/components/ui/Badge'
+import { RestTimer } from '@/components/ui/RestTimer'
 import type { WorkoutLog, ExerciseLog, SetLog, WodResult } from '@/types/workout-log'
 import type { Movement, WodScoring } from '@/types/program'
 
@@ -277,6 +278,8 @@ export function LogPage() {
                   unit={settings.weightUnit}
                 />
               ))}
+              {/* Rest timer for between sets */}
+              <RestTimer />
             </div>
           </Accordion>
         )}

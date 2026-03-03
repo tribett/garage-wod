@@ -334,7 +334,15 @@ function ActiveTimer({
     if (weekNumber && dayNumber) {
       navigate(`/log/${weekNumber}/${dayNumber}`)
     } else {
-      navigate('/')
+      // Navigate to WOD page with timer score pre-filled
+      const timerScore = `${minutes}:${seconds}`
+      navigate('/wod', {
+        state: {
+          timerScore,
+          timerMode: config.mode,
+          timerElapsed: state.elapsed,
+        },
+      })
     }
   }
 

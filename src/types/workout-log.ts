@@ -34,4 +34,6 @@ export interface WodResult {
   extraReps?: number
   totalTime?: number
   score?: string
+  /** Rx, Scaled, or custom scaling description */
+  scaling?: string
 }

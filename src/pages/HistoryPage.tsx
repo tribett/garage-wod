@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { getAllPRs, getMovementHistory } from '@/lib/pr-calculator'
+import { searchWorkoutHistory } from '@/lib/wod-history'
 import { formatDate, formatShortDate } from '@/lib/date-utils'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -19,6 +20,7 @@ export function HistoryPage() {
   const [selectedMovement, setSelectedMovement] = useState<string | null>(
     urlMovement ? decodeURIComponent(urlMovement) : null,
   )
+  const [searchQuery, setSearchQuery] = useState('')
 
   const allPRs = useMemo(() => getAllPRs(logs), [logs])
 
@@ -43,6 +45,12 @@ export function HistoryPage() {
         .filter((l) => l.completed)
         .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()),
     [logs],
+  )
+
+  // Search results
+  const searchResults = useMemo(
+    () => (searchQuery.trim() ? searchWorkoutHistory(logs, searchQuery) : []),
+    [logs, searchQuery],
   )
 
   const movementHistory = useMemo(
@@ -114,8 +122,93 @@ export function HistoryPage() {
       <Header title="History" subtitle={`${completedWorkouts.length} workouts logged`} />
 
       <div className="px-5 space-y-6">
-        {/* PRs Section */}
-        {allPRs.size > 0 && (
+        {/* Search Bar */}
+        <div className="relative">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search workouts, movements, scores..."
+            className="
+              w-full h-10 pl-9 pr-3 rounded-xl text-sm
+              bg-zinc-50 border border-zinc-200 text-zinc-900
+              dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50
+              placeholder:text-zinc-400 dark:placeholder:text-zinc-600
+              focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
+            "
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Search Results */}
+        {searchQuery.trim() && (
+          <section className="animate-fade-in">
+            <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 mb-2 px-1">
+              {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+            </h3>
+            {searchResults.length === 0 ? (
+              <p className="text-sm text-zinc-400 px-1">No matching workouts found.</p>
+            ) : (
+              <div className="space-y-2">
+                {searchResults.slice(0, 20).map((log) => (
+                  <Card key={log.id} padding="sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-display font-semibold text-sm">
+                          {log.title ?? `Week ${log.weekNumber} · Day ${log.dayNumber}`}
+                        </p>
+                        <p className="text-xs text-zinc-400">{formatDate(log.completedAt)}</p>
+                        {log.description && (
+                          <p className="text-xs text-zinc-400 dark:text-zinc-500 line-clamp-1 mt-0.5">
+                            {log.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {log.wodResult?.score && (
+                          <span className="text-sm font-mono text-zinc-600 dark:text-zinc-400">
+                            {log.wodResult.score}
+                          </span>
+                        )}
+                        {log.wodResult?.scaling && (
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                            log.wodResult.scaling === 'Rx'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+                          }`}>
+                            {log.wodResult.scaling}
+                          </span>
+                        )}
+                        <Badge variant="success">Done</Badge>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* PRs Section (hidden during search) */}
+        {!searchQuery.trim() && allPRs.size > 0 && (
           <section>
             <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 mb-2 px-1">
               Personal Records
@@ -151,8 +244,8 @@ export function HistoryPage() {
           </section>
         )}
 
-        {/* Exercises Section */}
-        {movements.length > 0 && (
+        {/* Exercises Section (hidden during search) */}
+        {!searchQuery.trim() && movements.length > 0 && (
           <section>
             <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 mb-2 px-1">
               Exercises
@@ -180,38 +273,49 @@ export function HistoryPage() {
           </section>
         )}
 
-        {/* Recent Workouts */}
-        <section>
-          <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 mb-2 px-1">
-            Recent Workouts
-          </h3>
-          {completedWorkouts.length === 0 ? (
-            <p className="text-sm text-zinc-400 px-1">No workouts logged yet. Complete your first workout!</p>
-          ) : (
-            <div className="space-y-2">
-              {completedWorkouts.slice(0, 20).map((log) => (
-                <Card key={log.id} padding="sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-display font-semibold text-sm">
-                        {log.title ?? `Week ${log.weekNumber} · Day ${log.dayNumber}`}
-                      </p>
-                      <p className="text-xs text-zinc-400">{formatDate(log.completedAt)}</p>
+        {/* Recent Workouts (hidden during search) */}
+        {!searchQuery.trim() && (
+          <section>
+            <h3 className="font-display font-semibold text-sm text-zinc-500 dark:text-zinc-400 mb-2 px-1">
+              Recent Workouts
+            </h3>
+            {completedWorkouts.length === 0 ? (
+              <p className="text-sm text-zinc-400 px-1">No workouts logged yet. Complete your first workout!</p>
+            ) : (
+              <div className="space-y-2">
+                {completedWorkouts.slice(0, 20).map((log) => (
+                  <Card key={log.id} padding="sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-display font-semibold text-sm">
+                          {log.title ?? `Week ${log.weekNumber} · Day ${log.dayNumber}`}
+                        </p>
+                        <p className="text-xs text-zinc-400">{formatDate(log.completedAt)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {log.wodResult?.score && (
+                          <span className="text-sm font-mono text-zinc-600 dark:text-zinc-400">
+                            {log.wodResult.score}
+                          </span>
+                        )}
+                        {log.wodResult?.scaling && (
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                            log.wodResult.scaling === 'Rx'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+                          }`}>
+                            {log.wodResult.scaling}
+                          </span>
+                        )}
+                        <Badge variant="success">Done</Badge>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {log.wodResult?.score && (
-                        <span className="text-sm font-mono text-zinc-600 dark:text-zinc-400">
-                          {log.wodResult.score}
-                        </span>
-                      )}
-                      <Badge variant="success">Done</Badge>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </section>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </div>
   )

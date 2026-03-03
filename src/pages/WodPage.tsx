@@ -1,15 +1,18 @@
-import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useWorkoutLogs, useWorkoutLogDispatch } from '@/contexts/WorkoutLogContext'
 import { generateId } from '@/lib/id'
 import { storage } from '@/lib/storage'
 import { STANDALONE_PROGRAM_ID } from '@/lib/constants'
+import { getWodScoreHistory } from '@/lib/wod-history'
+import { formatShortDate } from '@/lib/date-utils'
 import { BENCHMARK_WODS, type BenchmarkWod } from '@/data/benchmark-wods'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { ShareResultCard } from '@/components/ShareResultCard'
 import type { WorkoutLog, WodResult } from '@/types/workout-log'
 import type { WodType } from '@/types/program'
 
@@ -20,6 +23,8 @@ const WOD_TYPES: { value: WodType; label: string; scorePlaceholder: string }[] =
   { value: 'tabata', label: 'Tabata', scorePlaceholder: 'e.g., 84 total reps' },
   { value: 'rounds', label: 'Rounds', scorePlaceholder: 'e.g., 5 rounds' },
 ]
+
+const SCALING_OPTIONS = ['Rx', 'Scaled', 'Rx+'] as const
 
 const CATEGORY_TABS: { value: BenchmarkWod['category'] | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -37,28 +42,58 @@ const TYPE_LABELS: Record<WodType, string> = {
   rounds: 'Rounds',
 }
 
+interface WodLocationState {
+  timerScore?: string
+  timerMode?: string
+  timerElapsed?: number
+}
+
 export function WodPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const settings = useSettings()
   const logs = useWorkoutLogs()
   const dispatch = useWorkoutLogDispatch()
+
+  const locationState = location.state as WodLocationState | null
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [wodType, setWodType] = useState<WodType>('forTime')
   const [score, setScore] = useState('')
+  const [scaling, setScaling] = useState('')
   const [notes, setNotes] = useState('')
   const [saved, setSaved] = useState(false)
+  const [showShareCard, setShowShareCard] = useState(false)
 
   // Benchmark picker state
   const [showPicker, setShowPicker] = useState(false)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<BenchmarkWod['category'] | 'all'>('all')
 
+  // Auto-fill from timer (Feature 2)
+  useEffect(() => {
+    if (locationState?.timerScore) {
+      setScore(locationState.timerScore)
+      if (locationState.timerMode) {
+        const mode = locationState.timerMode as WodType
+        if (['forTime', 'amrap', 'emom', 'tabata', 'rounds'].includes(mode)) {
+          setWodType(mode)
+        }
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Count standalone WODs for generating weekNumber/dayNumber
   const standaloneCount = logs.filter((l) => l.programId === STANDALONE_PROGRAM_ID).length
 
   const selectedType = WOD_TYPES.find((t) => t.value === wodType)!
+
+  // Score history for current WOD title
+  const scoreHistory = useMemo(
+    () => (title.trim() ? getWodScoreHistory(logs, title.trim()) : []),
+    [logs, title],
+  )
 
   // Filtered benchmark list
   const filteredBenchmarks = useMemo(() => {
@@ -90,8 +125,12 @@ export function WodPage() {
     if (!title.trim()) return
 
     let wodResult: WodResult | undefined
-    if (score.trim()) {
-      wodResult = { type: wodType, score: score.trim() }
+    if (score.trim() || scaling) {
+      wodResult = {
+        type: wodType,
+        score: score.trim() || undefined,
+        scaling: scaling || undefined,
+      }
     }
 
     const log: WorkoutLog = {
@@ -133,16 +172,30 @@ export function WodPage() {
               </p>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 {title}
+                {scaling && <span className="ml-1 text-xs">({scaling})</span>}
               </p>
             </div>
           </Card>
+          {/* Share button */}
+          {score && (
+            <Button
+              variant="ghost"
+              fullWidth
+              onClick={() => setShowShareCard(true)}
+              className="border border-zinc-200 dark:border-zinc-700"
+            >
+              📸 Share Result
+            </Button>
+          )}
           <div className="flex gap-3">
             <Button variant="secondary" fullWidth onClick={() => {
               setTitle('')
               setDescription('')
               setScore('')
+              setScaling('')
               setNotes('')
               setSaved(false)
+              setShowShareCard(false)
             }}>
               Log Another
             </Button>
@@ -151,6 +204,20 @@ export function WodPage() {
             </Button>
           </div>
         </div>
+
+        {/* Share overlay */}
+        {showShareCard && (
+          <ShareResultCard
+            input={{
+              title,
+              date: new Date().toISOString(),
+              score,
+              scaling: scaling || undefined,
+              movements: description ? description.split('\n').filter(Boolean) : undefined,
+            }}
+            onClose={() => setShowShareCard(false)}
+          />
+        )}
       </div>
     )
   }
@@ -204,6 +271,46 @@ export function WodPage() {
             </a>
           </Card>
         </div>
+
+        {/* Score History (shown when a known WOD is selected) */}
+        {scoreHistory.length > 0 && (
+          <Card padding="md" className="animate-fade-in border-accent/20 dark:border-accent-dark/20">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                Previous Scores for {title}
+              </p>
+              <div className="space-y-1">
+                {scoreHistory.slice(-3).map((entry, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-500 dark:text-zinc-400">
+                      {formatShortDate(entry.date)}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-50">
+                        {entry.score}
+                      </span>
+                      {entry.scaling && (
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                          entry.scaling === 'Rx'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                            : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400'
+                        }`}>
+                          {entry.scaling}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {scoreHistory.length > 0 && (
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                  Best: {scoreHistory.reduce((best, e) => e.score < best ? e.score : best, scoreHistory[0].score)}
+                  {' · '}{scoreHistory.length} attempt{scoreHistory.length !== 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+          </Card>
+        )}
 
         {/* WOD Entry Form */}
         <Card padding="lg" className="animate-slide-up delay-1">
@@ -272,24 +379,55 @@ export function WodPage() {
               />
             </div>
 
-            {/* Score */}
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                Score
-              </label>
-              <input
-                type="text"
-                value={score}
-                onChange={(e) => setScore(e.target.value)}
-                placeholder={selectedType.scorePlaceholder}
-                className="
-                  w-full h-10 px-3 rounded-xl text-sm
-                  bg-zinc-50 border border-zinc-200 text-zinc-900
-                  dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50
-                  placeholder:text-zinc-400 dark:placeholder:text-zinc-600
-                  focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
-                "
-              />
+            {/* Score + Scaling Row */}
+            <div className="flex gap-3">
+              {/* Score */}
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                  Score
+                </label>
+                <input
+                  type="text"
+                  value={score}
+                  onChange={(e) => setScore(e.target.value)}
+                  placeholder={selectedType.scorePlaceholder}
+                  className="
+                    w-full h-10 px-3 rounded-xl text-sm
+                    bg-zinc-50 border border-zinc-200 text-zinc-900
+                    dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50
+                    placeholder:text-zinc-400 dark:placeholder:text-zinc-600
+                    focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
+                  "
+                />
+              </div>
+
+              {/* Scaling */}
+              <div className="shrink-0">
+                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                  Scaling
+                </label>
+                <div className="flex gap-1 h-10 items-center">
+                  {SCALING_OPTIONS.map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setScaling(scaling === opt ? '' : opt)}
+                      className={`
+                        px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all
+                        ${scaling === opt
+                          ? opt === 'Rx'
+                            ? 'bg-emerald-500 text-white'
+                            : opt === 'Rx+'
+                              ? 'bg-amber-500 text-white'
+                              : 'bg-blue-500 text-white'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                        }
+                      `}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Notes */}
@@ -300,7 +438,7 @@ export function WodPage() {
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="How did it feel? Scaled? Rx'd?"
+                placeholder="How did it feel? Any modifications?"
                 rows={2}
                 className="
                   w-full px-3 py-2 rounded-xl text-sm resize-none

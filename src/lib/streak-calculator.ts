@@ -66,3 +66,18 @@ export function getWorkoutsThisWeek(logs: WorkoutLog[]): number {
     return logDate >= weekStart
   }).length
 }
+
+export function getWorkoutsThisMonth(logs: WorkoutLog[]): number {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  return logs.filter((log) => {
+    if (!log.completed) return false
+    const logDate = new Date(log.completedAt)
+    return logDate >= monthStart
+  }).length
+}
+
+export function getTotalWodCount(logs: WorkoutLog[]): number {
+  return logs.filter((log) => log.completed).length
+}
