@@ -16,7 +16,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'sounds/*.mp3'],
+      includeAssets: ['favicon-32x32.png', 'favicon-16x16.png', 'sounds/*.mp3'],
       manifest: {
         name: 'GRGWOD',
         short_name: 'GRGWOD',
