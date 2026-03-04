@@ -4,15 +4,20 @@ import { useTimer } from '@/hooks/useTimer'
 import { useAudio } from '@/hooks/useAudio'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { formatMsPrecise } from '@/lib/date-utils'
 import { formatTimerScore } from '@/lib/format-timer-score'
 import { getMovementLabel } from '@/lib/emom-cycle'
 import { incrementRound, decrementRound, setExtraReps, formatRoundCount } from '@/lib/round-counter'
 import type { RoundCount } from '@/lib/round-counter'
 import { saveTimerConfig, loadTimerConfig } from '@/lib/timer-config-storage'
+import { playSound } from '@/lib/competition-sounds'
+import { createGhostFromHistory, updateGhostState } from '@/lib/ghost-racer'
+import { createPartnerState, switchPartner, getPartnerSummary } from '@/lib/partner-wod'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { NumberInput } from '@/components/ui/NumberInput'
+import { GhostPacer } from '@/components/ui/GhostPacer'
 import type { TimerConfig, TimerMode } from '@/types/timer'
 
 // ---------------------------------------------------------------------------
@@ -284,20 +289,42 @@ function ActiveTimer({
   const pendingNavRef = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
   const settings = useSettings()
+  const logs = useWorkoutLogs()
   const { preload, playBeep, playLongBeep, playCelebration } = useAudio()
   const { request: requestWakeLock, release: releaseWakeLock } = useWakeLock()
 
+  // --- Ghost Pacer state ---
+  const [ghostData, setGhostData] = useState<{ previousTime: number; previousScore: string } | null>(null)
+
+  // --- Partner WOD state ---
+  const [partnerMode, setPartnerMode] = useState(false)
+  const [partnerState, setPartnerState] = useState(() => createPartnerState())
+
+  // Track previous state values for detecting transitions
+  const prevRoundRef = useRef<number>(1)
+  const prevIsWorkRef = useRef<boolean>(true)
+  const prevStatusRef = useRef<string>('idle')
+
   const onComplete = useCallback(() => {
-    if (settings.soundEnabled) playCelebration()
+    if (settings.soundEnabled) {
+      playCelebration()
+      playSound('finish_horn')
+    }
     releaseWakeLock()
   }, [settings.soundEnabled, playCelebration, releaseWakeLock])
 
   const beep = useCallback(() => {
-    if (settings.soundEnabled) playBeep()
+    if (settings.soundEnabled) {
+      playBeep()
+      playSound('countdown_tick')
+    }
   }, [settings.soundEnabled, playBeep])
 
   const longBeep = useCallback(() => {
-    if (settings.soundEnabled) playLongBeep()
+    if (settings.soundEnabled) {
+      playLongBeep()
+      playSound('finish_horn')
+    }
   }, [settings.soundEnabled, playLongBeep])
 
   const { state, start, pause, resume, reset, markComplete } = useTimer(
@@ -306,6 +333,74 @@ function ActiveTimer({
     longBeep,
     onComplete,
   )
+
+  // --- Competition sounds: context-aware effects ---
+
+  // Play go_horn when timer transitions from idle to running
+  useEffect(() => {
+    if (prevStatusRef.current === 'idle' && state.status === 'running') {
+      if (settings.soundEnabled) {
+        playSound('go_horn')
+      }
+      // Initialize ghost pacer on timer start
+      if (wodName && config.mode === 'forTime') {
+        const ghost = createGhostFromHistory(wodName, logs)
+        setGhostData(ghost)
+      }
+    }
+    prevStatusRef.current = state.status
+  }, [state.status, settings.soundEnabled, wodName, config.mode, logs])
+
+  // Play round_complete when EMOM round changes
+  useEffect(() => {
+    if (state.status !== 'running') return
+    if (config.mode === 'emom' && state.currentRound !== prevRoundRef.current && state.currentRound > 1) {
+      if (settings.soundEnabled) {
+        playSound('round_complete')
+      }
+    }
+    prevRoundRef.current = state.currentRound
+  }, [state.currentRound, state.status, config.mode, settings.soundEnabled])
+
+  // Play work_start / rest_start when Tabata interval changes
+  useEffect(() => {
+    if (state.status !== 'running') return
+    if (config.mode === 'tabata' && state.isWorkInterval !== prevIsWorkRef.current) {
+      if (settings.soundEnabled) {
+        playSound(state.isWorkInterval ? 'work_start' : 'rest_start')
+      }
+    }
+    prevIsWorkRef.current = state.isWorkInterval
+  }, [state.isWorkInterval, state.status, config.mode, settings.soundEnabled])
+
+  // Play final_ten when entering last 10 seconds of an interval
+  const firedFinalTenRef = useRef(false)
+  useEffect(() => {
+    if (state.status !== 'running') {
+      firedFinalTenRef.current = false
+      return
+    }
+    if (
+      state.intervalRemaining > 0 &&
+      state.intervalRemaining <= 10000 &&
+      !firedFinalTenRef.current
+    ) {
+      if (settings.soundEnabled) {
+        playSound('final_ten')
+      }
+      firedFinalTenRef.current = true
+    }
+    // Reset when interval remaining goes back up (new interval)
+    if (state.intervalRemaining > 10000) {
+      firedFinalTenRef.current = false
+    }
+  }, [state.intervalRemaining, state.status, settings.soundEnabled])
+
+  // --- Ghost Pacer computed state ---
+  const ghostState = useMemo(() => {
+    if (!ghostData) return null
+    return updateGhostState(state.elapsed, ghostData.previousTime)
+  }, [ghostData, state.elapsed])
 
   // Preload audio on mount
   useEffect(() => {
@@ -388,6 +483,8 @@ function ActiveTimer({
 
   const handleReset = () => {
     reset()
+    setGhostData(null)
+    setPartnerState(createPartnerState())
   }
 
   const handleTimerAreaClick = () => {
@@ -604,6 +701,13 @@ function ActiveTimer({
               </div>
             </div>
 
+            {/* Ghost Pacer for forTime mode */}
+            {config.mode === 'forTime' && (
+              <div className="mt-4 w-full max-w-xs">
+                <GhostPacer state={ghostState} />
+              </div>
+            )}
+
             {/* Tabata work/rest indicator */}
             {config.mode === 'tabata' && state.status === 'running' && (
               <div className="mt-6 animate-fade-in">
@@ -633,6 +737,27 @@ function ActiveTimer({
           </>
         )}
       </div>
+
+      {/* Partner WOD display */}
+      {partnerMode && state.status !== 'idle' && (
+        <div className="text-center mt-2">
+          <div className="text-lg font-bold text-purple-400">
+            Partner {partnerState.activePartner}
+          </div>
+          <button
+            onClick={() => setPartnerState(prev => switchPartner(prev, state.elapsed))}
+            className="mt-1 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium"
+          >
+            Switch Partner
+          </button>
+          <div className="mt-2 text-xs text-zinc-400">
+            {(() => {
+              const summary = getPartnerSummary(partnerState)
+              return `A: ${summary.partnerA.rounds}R / ${summary.partnerA.workTime} | B: ${summary.partnerB.rounds}R / ${summary.partnerB.workTime}`
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Round indicator */}
       {state.totalRounds > 0 && state.status !== 'complete' && (
@@ -665,9 +790,19 @@ function ActiveTimer({
       {/* Controls */}
       <div className="px-5 pb-8 pt-4 shrink-0">
         {state.status === 'idle' && (
-          <Button variant="primary" size="xl" fullWidth onClick={start}>
-            START
-          </Button>
+          <div>
+            <div className="flex justify-center mb-3">
+              <button
+                onClick={() => setPartnerMode(!partnerMode)}
+                className={`text-xs px-2 py-1 rounded ${partnerMode ? 'bg-purple-500 text-white' : 'bg-zinc-200 dark:bg-zinc-700'}`}
+              >
+                🤝 Partner {partnerMode ? 'ON' : 'OFF'}
+              </button>
+            </div>
+            <Button variant="primary" size="xl" fullWidth onClick={start}>
+              START
+            </Button>
+          </div>
         )}
 
         {state.status === 'paused' && (
@@ -682,9 +817,21 @@ function ActiveTimer({
         )}
 
         {state.status === 'running' && (
-          <p className="text-center text-xs text-zinc-600 py-3">
-            Tap timer to pause
-          </p>
+          <div>
+            {partnerMode && (
+              <div className="flex justify-center mb-2">
+                <button
+                  onClick={() => setPartnerMode(!partnerMode)}
+                  className={`text-xs px-2 py-1 rounded ${partnerMode ? 'bg-purple-500 text-white' : 'bg-zinc-200 dark:bg-zinc-700'}`}
+                >
+                  🤝 Partner {partnerMode ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            )}
+            <p className="text-center text-xs text-zinc-600 py-3">
+              Tap timer to pause
+            </p>
+          </div>
         )}
 
         {state.status === 'complete' && (

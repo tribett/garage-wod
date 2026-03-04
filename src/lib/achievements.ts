@@ -277,3 +277,8 @@ export function getUnlockedAchievements(): Achievement[] {
 export function saveUnlockedAchievements(achievements: Achievement[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(achievements))
 }
+
+/** Re-export definitions so the dashboard can render locked badges. */
+export const ACHIEVEMENTS: readonly Pick<Achievement, 'id' | 'name' | 'description' | 'icon' | 'tier'>[] = ACHIEVEMENT_DEFINITIONS.map(
+  ({ id, name, description, icon, tier }) => ({ id, name, description, icon, tier }),
+)

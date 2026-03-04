@@ -19,6 +19,8 @@ import { Card } from '@/components/ui/Card'
 import { Toggle } from '@/components/ui/Toggle'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { getSoundPack, setSoundPack } from '@/lib/competition-sounds'
+import type { SoundPack } from '@/lib/competition-sounds'
 
 const THEME_OPTIONS: { value: 'light' | 'dark' | 'system'; label: string }[] = [
   { value: 'light', label: 'Light' },
@@ -52,6 +54,7 @@ export function SettingsPage() {
   const [restoreSuccess, setRestoreSuccess] = useState<string | null>(null)
 
   const quota = useMemo(() => checkStorageQuota(storage.getUsageBytes()), [])
+  const [soundPack, setSoundPackState] = useState<SoundPack>(() => getSoundPack())
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -214,6 +217,25 @@ export function SettingsPage() {
                 checked={settings.soundEnabled}
                 onChange={(v) => updateSettings({ soundEnabled: v })}
               />
+            </Card>
+
+            <Card>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Sound Pack</label>
+                <div className="flex gap-2">
+                  {(['competition', 'minimal', 'none'] as SoundPack[]).map(pack => (
+                    <button
+                      key={pack}
+                      onClick={() => { setSoundPackState(pack); setSoundPack(pack) }}
+                      className={`text-xs px-3 py-1.5 rounded-lg capitalize ${
+                        soundPack === pack ? 'bg-blue-500 text-white' : 'bg-zinc-200 dark:bg-zinc-700'
+                      }`}
+                    >
+                      {pack === 'competition' ? '📢 Competition' : pack === 'minimal' ? '🔔 Minimal' : '🔇 None'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </Card>
 
             <Card>

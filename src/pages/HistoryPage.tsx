@@ -14,6 +14,8 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { SimpleChart } from '@/components/history/SimpleChart'
 import type { PR } from '@/lib/pr-calculator'
+import { RecapCard } from '@/components/ui/RecapCard'
+import { getYearlyRecap } from '@/lib/recaps'
 
 const CATEGORY_COLORS: Record<string, string> = {
   squat: 'bg-blue-500 dark:bg-blue-400',
@@ -123,6 +125,8 @@ export function HistoryPage() {
 
   const frequencyBreakdown = useMemo(() => getFrequencyBreakdown(logs), [logs])
   const frequencyGaps = useMemo(() => getGaps(frequencyBreakdown), [frequencyBreakdown])
+
+  const yearlyRecap = useMemo(() => getYearlyRecap(logs, new Date().getFullYear()), [logs])
 
   const movementHistory = useMemo(
     () => (selectedMovement ? getMovementHistory(selectedMovement, logs) : []),
@@ -254,6 +258,16 @@ export function HistoryPage() {
       <Header title="History" subtitle={`${completedWorkouts.length} workouts logged`} />
 
       <div className="px-5 space-y-6">
+        {/* Yearly Recap */}
+        <div className="mb-6">
+          <RecapCard
+            month={`${yearlyRecap.year} Year in Review`}
+            totalWorkouts={yearlyRecap.totalWorkouts}
+            prsHit={yearlyRecap.totalPRs}
+            topMovement={yearlyRecap.topMovements[0] ?? null}
+          />
+        </div>
+
         {/* Search Bar */}
         <div className="relative">
           <svg

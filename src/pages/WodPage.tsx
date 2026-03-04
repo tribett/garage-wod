@@ -14,6 +14,9 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { SimpleChart } from '@/components/history/SimpleChart'
+import { compareWodScore } from '@/lib/score-comparisons'
+import { WodSpinner } from '@/components/ui/WodSpinner'
+import { generateWod } from '@/lib/wod-generator'
 import { ShareResultCard } from '@/components/ShareResultCard'
 import type { WorkoutLog, WodResult } from '@/types/workout-log'
 import type { WodType } from '@/types/program'
@@ -67,6 +70,7 @@ export function WodPage() {
   const [notes, setNotes] = useState('')
   const [saved, setSaved] = useState(false)
   const [showShareCard, setShowShareCard] = useState(false)
+  const [scoreComparison, setScoreComparison] = useState<ReturnType<typeof compareWodScore> | null>(null)
 
   // Benchmark picker state
   const [showPicker, setShowPicker] = useState(false)
@@ -155,6 +159,12 @@ export function WodPage() {
     }
 
     dispatch({ type: 'LOG_WORKOUT', payload: log })
+
+    if (title.trim() && score.trim() && wodType) {
+      const comparison = compareWodScore(title.trim(), score.trim(), wodType, logs)
+      setScoreComparison(comparison)
+    }
+
     setSaved(true)
 
     if (settings.autoBackup) storage.triggerAutoBackup()
@@ -184,6 +194,18 @@ export function WodPage() {
               </p>
             </div>
           </Card>
+          {scoreComparison && (
+            <div className={`mt-3 p-3 rounded-lg ${
+              scoreComparison.isBest ? 'bg-emerald-50 dark:bg-emerald-900/20' :
+              scoreComparison.trend === 'improving' ? 'bg-blue-50 dark:bg-blue-900/20' :
+              'bg-zinc-50 dark:bg-zinc-800/50'
+            }`}>
+              <p className="text-sm font-medium">{scoreComparison.callout}</p>
+              {scoreComparison.attemptNumber > 1 && (
+                <p className="text-xs text-zinc-500 mt-1">Attempt #{scoreComparison.attemptNumber}</p>
+              )}
+            </div>
+          )}
           {/* Share button */}
           {score && (
             <Button
@@ -242,6 +264,11 @@ export function WodPage() {
       />
 
       <div className="px-5 space-y-4 pb-8">
+        {/* WOD Spinner */}
+        <div className="mb-6">
+          <WodSpinner onGenerate={() => generateWod(logs)} />
+        </div>
+
         {/* Quick Actions Row */}
         <div className="flex gap-2 animate-slide-up">
           <Card padding="sm" className="flex-1">

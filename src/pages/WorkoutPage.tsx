@@ -9,6 +9,11 @@ import { getMovementVideoId } from '@/lib/movement-videos'
 import { getScalingOptions } from '@/lib/movement-scaling'
 import { resolveWeight } from '@/lib/percentage-loader'
 import { estimate1RM } from '@/lib/one-rm-calculator'
+import { getEquipmentForDay } from '@/lib/equipment-checklist'
+import { generateWarmUp } from '@/lib/warmup-generator'
+import { predictDifficulty } from '@/lib/difficulty-predictor'
+import { getAllPRs } from '@/lib/pr-calculator'
+import { WhiteboardMode } from '@/components/ui/WhiteboardMode'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -267,6 +272,8 @@ export function WorkoutPage() {
   const logs = useWorkoutLogs()
   const settings = useSettings()
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null)
+  const [showWarmUp, setShowWarmUp] = useState(false)
+  const [showWhiteboard, setShowWhiteboard] = useState(false)
 
   const prMap = useMemo(() => {
     const map = new Map<string, { weight: number; reps: number }>()
@@ -292,6 +299,22 @@ export function WorkoutPage() {
   const dayNumber = Number(params.dayNumber)
   const day = findDay(program, weekNumber, dayNumber)
   const weekDays = getWeekDays(program, weekNumber)
+
+  const equipment = useMemo(() => day ? getEquipmentForDay(day.blocks) : null, [day])
+
+  const warmUp = useMemo(() => {
+    if (!day) return null
+    const allMovements = day.blocks.flatMap(b => b.movements)
+    return generateWarmUp(allMovements)
+  }, [day])
+
+  const difficulty = useMemo(() => {
+    if (!day) return null
+    const prs = getAllPRs(logs)
+    const prMapForDifficulty = new Map(Array.from(prs.entries()).map(([k, pr]) => [k, { value: pr.value, reps: pr.reps }]))
+    const recentRPEs = logs.slice(-5).filter(l => l.rpe != null).map(l => l.rpe!)
+    return predictDifficulty(day.blocks, prMapForDifficulty, recentRPEs)
+  }, [day, logs])
 
   if (!day) {
     return (
@@ -334,16 +357,21 @@ export function WorkoutPage() {
 
   return (
     <div className="px-5 pt-4 pb-8">
-      {/* Back button */}
-      <button
-        onClick={() => navigate('/')}
-        className="flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors mb-4"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-        </svg>
-        Dashboard
-      </button>
+      {/* Back button + Whiteboard button */}
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+          </svg>
+          Dashboard
+        </button>
+        <button onClick={() => setShowWhiteboard(true)} className="text-sm text-zinc-500 hover:text-zinc-700">
+          📺 Whiteboard
+        </button>
+      </div>
 
       {/* Header */}
       <div className="mb-5">
@@ -356,6 +384,16 @@ export function WorkoutPage() {
           </h1>
           {day.intent && (
             <Badge variant={INTENT_CONFIG[day.intent].variant}>{INTENT_CONFIG[day.intent].label}</Badge>
+          )}
+          {difficulty && (
+            <span className={`text-xs px-2 py-0.5 rounded-full ${
+              difficulty.score <= 3 ? 'bg-green-100 text-green-700' :
+              difficulty.score <= 5 ? 'bg-yellow-100 text-yellow-700' :
+              difficulty.score <= 7 ? 'bg-orange-100 text-orange-700' :
+              'bg-red-100 text-red-700'
+            }`}>
+              {difficulty.label} ({difficulty.score}/10)
+            </span>
           )}
         </div>
       </div>
@@ -394,6 +432,37 @@ export function WorkoutPage() {
             </p>
           </div>
         </Card>
+      )}
+
+      {/* Equipment Checklist */}
+      {equipment && equipment.items.length > 0 && (
+        <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg p-3 mb-4">
+          <h3 className="text-sm font-medium text-zinc-500 mb-2">📋 Equipment Needed</h3>
+          <div className="flex flex-wrap gap-2">
+            {equipment.items.map(item => (
+              <span key={item} className="text-xs bg-zinc-200 dark:bg-zinc-700 rounded-full px-2 py-1">{item}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Warm-Up Generator */}
+      {warmUp && warmUp.exercises.length > 0 && (
+        <div className="mb-4">
+          <button onClick={() => setShowWarmUp(!showWarmUp)} className="text-sm text-blue-500 font-medium">
+            🔥 {showWarmUp ? 'Hide' : 'Show'} Suggested Warm-Up ({warmUp.estimatedMinutes} min)
+          </button>
+          {showWarmUp && (
+            <div className="mt-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 space-y-1">
+              {warmUp.exercises.map((ex, i) => (
+                <div key={i} className="text-sm">
+                  <span className="font-medium">{ex.name}</span>
+                  {ex.duration && <span className="text-zinc-500 ml-2">{ex.duration}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Blocks */}
@@ -443,6 +512,21 @@ export function WorkoutPage() {
         videoId={selectedMovement ? getMovementVideoId(selectedMovement.name) : null}
         scalingOptions={selectedMovement ? getScalingOptions(selectedMovement.name) : null}
       />
+
+      {/* Whiteboard Mode */}
+      {showWhiteboard && day && (
+        <WhiteboardMode
+          wodName={day.name}
+          movements={day.blocks.flatMap(b => b.movements).map(m => ({
+            name: m.name,
+            reps: m.reps != null ? (m.sets && m.sets > 1 ? `${m.sets}×${m.reps}` : String(m.reps)) : undefined,
+            weight: m.weight || undefined,
+          }))}
+          scoring={day.blocks.find(b => b.scoring)?.scoring ?
+            `${day.blocks.find(b => b.scoring)!.scoring!.type.toUpperCase()} ${day.blocks.find(b => b.scoring)!.scoring!.duration ? day.blocks.find(b => b.scoring)!.scoring!.duration + ':00' : ''}` : undefined}
+          onClose={() => setShowWhiteboard(false)}
+        />
+      )}
     </div>
   )
 }

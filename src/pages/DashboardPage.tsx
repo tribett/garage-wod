@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProgram } from '@/contexts/ProgramContext'
 import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
@@ -30,6 +30,13 @@ import type { Goal, GoalType } from '@/lib/goals'
 import type { Day, DayIntent, WodScoring } from '@/types/program'
 import type { PR } from '@/lib/pr-calculator'
 import type { WeeklyVolume } from '@/lib/volume-calculator'
+import { AchievementBadge } from '@/components/ui/AchievementBadge'
+import { checkAchievements, getUnlockedAchievements, saveUnlockedAchievements, ACHIEVEMENTS } from '@/lib/achievements'
+import type { AchievementContext } from '@/lib/achievements'
+import { RecapCard } from '@/components/ui/RecapCard'
+import { getCurrentMonthRecap } from '@/lib/recaps'
+import { WodSpinner } from '@/components/ui/WodSpinner'
+import { generateWod } from '@/lib/wod-generator'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -895,6 +902,32 @@ export function DashboardPage() {
     storage.save(STORAGE_KEYS.GOALS, updated)
   }, [goals])
 
+  // Achievements
+  const [unlockedAchievements, setUnlockedAchievements] = useState(() => getUnlockedAchievements())
+
+  useEffect(() => {
+    const achievementPrs = new Map<string, { value: number; reps: number }>()
+    prMap.forEach((v, k) => achievementPrs.set(k, { value: v.weight, reps: v.reps }))
+    const ctx: AchievementContext = {
+      logs,
+      prs: achievementPrs,
+      bodyweight: undefined,
+      streakWeeks: streak,
+    }
+    const alreadyIds = unlockedAchievements.map(a => a.id)
+    const newlyUnlocked = checkAchievements(ctx, alreadyIds)
+    if (newlyUnlocked.length > 0) {
+      const updated = [...unlockedAchievements, ...newlyUnlocked]
+      setUnlockedAchievements(updated)
+      saveUnlockedAchievements(updated)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logs])
+
+  // Monthly recap
+  const monthlyRecap = useMemo(() => getCurrentMonthRecap(logs), [logs])
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
   if (!program) {
     return (
       <div className="px-5 py-8">
@@ -970,6 +1003,11 @@ export function DashboardPage() {
           </div>
         </Card>
 
+        {/* WOD Spinner */}
+        <div className="mt-4">
+          <WodSpinner onGenerate={() => generateWod(logs)} />
+        </div>
+
         {/* Bodyweight quick-log */}
         <BodyweightCard unit={settings.weightUnit} />
 
@@ -979,6 +1017,38 @@ export function DashboardPage() {
           <WorkoutsThisWeekDisplay count={workoutsThisWeek} />
           <MonthlyDisplay count={workoutsThisMonth} />
           <TotalDisplay count={totalWods} />
+        </div>
+
+        {/* Achievements */}
+        <div className="mt-6">
+          <h2 className="text-lg font-semibold mb-3">🏆 Achievements</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {ACHIEVEMENTS.slice(0, 8).map(def => {
+              const unlocked = unlockedAchievements.find(a => a.id === def.id)
+              return (
+                <div key={def.id} className="flex-shrink-0">
+                  <AchievementBadge
+                    name={def.name}
+                    icon={def.icon}
+                    tier={def.tier}
+                    description={def.description}
+                    unlockedAt={unlocked?.unlockedAt}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Monthly Recap */}
+        <div className="mt-6">
+          <RecapCard
+            month={`${monthNames[monthlyRecap.month]} ${monthlyRecap.year}`}
+            totalWorkouts={monthlyRecap.totalWorkouts}
+            prsHit={monthlyRecap.prsHit}
+            topMovement={monthlyRecap.topMovement}
+            comparedToLastMonth={monthlyRecap.comparedToLastMonth ? { workoutDelta: monthlyRecap.comparedToLastMonth.workoutDelta } : undefined}
+          />
         </div>
 
         {/* Training Calendar */}
