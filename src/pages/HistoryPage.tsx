@@ -6,6 +6,7 @@ import { getAllPRs, getMovementHistory } from '@/lib/pr-calculator'
 import { buildPRTimeline } from '@/lib/pr-timeline'
 import { estimate1RM, getPercentages } from '@/lib/one-rm-calculator'
 import { searchWorkoutHistory } from '@/lib/wod-history'
+import { getFrequencyBreakdown, getGaps, ALL_CATEGORIES } from '@/lib/movement-frequency'
 import { formatDate, formatShortDate } from '@/lib/date-utils'
 import { Header } from '@/components/layout/Header'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -13,6 +14,70 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { SimpleChart } from '@/components/history/SimpleChart'
 import type { PR } from '@/lib/pr-calculator'
+
+const CATEGORY_COLORS: Record<string, string> = {
+  squat: 'bg-blue-500 dark:bg-blue-400',
+  hinge: 'bg-orange-500 dark:bg-orange-400',
+  push: 'bg-emerald-500 dark:bg-emerald-400',
+  pull: 'bg-purple-500 dark:bg-purple-400',
+  core: 'bg-yellow-500 dark:bg-yellow-400',
+  cardio: 'bg-red-500 dark:bg-red-400',
+  carry: 'bg-teal-500 dark:bg-teal-400',
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  squat: 'Squat', hinge: 'Hinge', push: 'Push', pull: 'Pull',
+  core: 'Core', cardio: 'Cardio', carry: 'Carry',
+}
+
+function FrequencyOverview({
+  breakdown,
+  gaps,
+}: {
+  breakdown: Record<string, number>
+  gaps: string[]
+}) {
+  const maxCount = Math.max(...Object.values(breakdown), 1)
+  const hasAnyData = Object.values(breakdown).some((v) => v > 0)
+  if (!hasAnyData) return null
+
+  return (
+    <Card padding="md">
+      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
+        Movement Balance (30 days)
+      </p>
+      <div className="space-y-2">
+        {ALL_CATEGORIES.map((cat) => {
+          const count = breakdown[cat] ?? 0
+          const isGap = gaps.includes(cat)
+          const widthPct = maxCount > 0 ? (count / maxCount) * 100 : 0
+
+          return (
+            <div key={cat} className="flex items-center gap-2">
+              <span className={`text-[11px] font-medium w-14 text-right ${isGap ? 'text-red-500 dark:text-red-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                {CATEGORY_LABELS[cat]}
+              </span>
+              <div className="flex-1 h-4 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${CATEGORY_COLORS[cat] ?? 'bg-zinc-400'}`}
+                  style={{ width: `${Math.max(widthPct, count > 0 ? 8 : 0)}%` }}
+                />
+              </div>
+              <span className={`text-xs font-bold w-6 text-left ${isGap ? 'text-red-500 dark:text-red-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                {count}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+      {gaps.length > 0 && (
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-3 font-medium">
+          Try adding more {gaps.map((g) => CATEGORY_LABELS[g]?.toLowerCase()).join(', ')} work
+        </p>
+      )}
+    </Card>
+  )
+}
 
 export function HistoryPage() {
   const { movementName: urlMovement } = useParams<{ movementName: string }>()
@@ -55,6 +120,9 @@ export function HistoryPage() {
     () => (searchQuery.trim() ? searchWorkoutHistory(logs, searchQuery) : []),
     [logs, searchQuery],
   )
+
+  const frequencyBreakdown = useMemo(() => getFrequencyBreakdown(logs), [logs])
+  const frequencyGaps = useMemo(() => getGaps(frequencyBreakdown), [frequencyBreakdown])
 
   const movementHistory = useMemo(
     () => (selectedMovement ? getMovementHistory(selectedMovement, logs) : []),
@@ -269,6 +337,11 @@ export function HistoryPage() {
               </div>
             )}
           </section>
+        )}
+
+        {/* Movement Frequency (hidden during search) */}
+        {!searchQuery.trim() && (
+          <FrequencyOverview breakdown={frequencyBreakdown} gaps={frequencyGaps} />
         )}
 
         {/* PRs Section (hidden during search) */}

@@ -7,6 +7,7 @@ import { calculateStreak, getWorkoutsThisWeek, getWorkoutsThisMonth, getTotalWod
 import { getRestDayMessage } from '@/lib/rest-day-guidance'
 import { getAverageRPE, getTrainingLoadWarning, RPE_LABELS } from '@/lib/rpe'
 import { getRecentPRs } from '@/lib/pr-calculator'
+import { getRetestSuggestions } from '@/lib/retest-reminders'
 import { getWeeklyVolume } from '@/lib/volume-calculator'
 import { findNextWorkout } from '@/lib/next-workout'
 import { addEntry, getLatestWeight, getToday } from '@/lib/bodyweight-log'
@@ -665,6 +666,43 @@ function BodyweightCard({ unit }: { unit: 'lbs' | 'kg' }) {
   )
 }
 
+function RetestCard({ suggestions, onRetest }: {
+  suggestions: { wodName: string; lastScore: string; daysSince: number }[]
+  onRetest: (wodName: string) => void
+}) {
+  if (suggestions.length === 0) return null
+
+  return (
+    <div className="animate-slide-up delay-5">
+      <h3 className="font-display font-semibold text-sm text-zinc-900 dark:text-zinc-50 mb-2">
+        Time to Retest?
+      </h3>
+      <div className="space-y-2">
+        {suggestions.map((s) => (
+          <Card key={s.wodName} padding="sm">
+            <button
+              className="w-full flex items-center justify-between"
+              onClick={() => onRetest(s.wodName)}
+            >
+              <div className="text-left">
+                <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  {s.wodName}
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {s.lastScore && `Last: ${s.lastScore} · `}{s.daysSince}d ago
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-accent dark:text-accent-light">
+                Retest →
+              </span>
+            </button>
+          </Card>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // DashboardPage
 // ---------------------------------------------------------------------------
@@ -720,6 +758,8 @@ export function DashboardPage() {
       .map((l) => l.rpe!)
     return getTrainingLoadWarning(recentRPEs)
   }, [logs])
+
+  const retestSuggestions = useMemo(() => getRetestSuggestions(logs), [logs])
 
   const restDayMessage = useMemo(
     () => getRestDayMessage(streak, lastWorkoutDate),
@@ -817,6 +857,12 @@ export function DashboardPage() {
 
         {/* Weekly Volume */}
         <WeeklyVolumeCard volume={weeklyVolume} />
+
+        {/* Retest Suggestions */}
+        <RetestCard
+          suggestions={retestSuggestions}
+          onRetest={(wodName) => navigate('/wod', { state: { prefillTitle: wodName } })}
+        />
 
         {/* Recent PRs */}
         <RecentPRs prs={recentPRs} unit={settings.weightUnit} />

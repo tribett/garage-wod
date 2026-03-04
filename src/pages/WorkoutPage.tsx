@@ -1,10 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useProgram } from '@/contexts/ProgramContext'
+import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
+import { useSettings } from '@/contexts/SettingsContext'
 import { formatMovementLine } from '@/lib/format-movement'
 import { getWeekDays } from '@/lib/get-week-days'
 import { getMovementVideoId } from '@/lib/movement-videos'
 import { getScalingOptions } from '@/lib/movement-scaling'
+import { resolveWeight } from '@/lib/percentage-loader'
+import { estimate1RM } from '@/lib/one-rm-calculator'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -119,7 +123,7 @@ function scoringToTimerConfig(scoring: WodScoring): TimerConfig {
 // Movement Display
 // ---------------------------------------------------------------------------
 
-function MovementRow({ movement, showRest, onTap }: { movement: Movement; showRest: boolean; onTap?: () => void }) {
+function MovementRow({ movement, showRest, onTap, resolvedWeight, weightUnit }: { movement: Movement; showRest: boolean; onTap?: () => void; resolvedWeight?: { display: string; calculated: number } | null; weightUnit?: string }) {
   const parts: string[] = []
 
   // Build the primary descriptor
@@ -161,6 +165,11 @@ function MovementRow({ movement, showRest, onTap }: { movement: Movement; showRe
           {movement.weight && (
             <span className="text-xs text-zinc-500 dark:text-zinc-400">({movement.weight})</span>
           )}
+          {resolvedWeight && (
+            <span className="ml-1.5 text-xs font-semibold text-accent dark:text-accent-light bg-accent/10 dark:bg-accent/20 px-1.5 py-0.5 rounded-md">
+              → {resolvedWeight.display} {weightUnit}
+            </span>
+          )}
         </div>
         {movement.notes && (
           <p className="text-xs italic text-zinc-500 dark:text-zinc-400 mt-0.5">{movement.notes}</p>
@@ -184,7 +193,7 @@ function MovementRow({ movement, showRest, onTap }: { movement: Movement; showRe
 // Block Display
 // ---------------------------------------------------------------------------
 
-function BlockCard({ block, onMovementTap }: { block: WorkoutBlock; onMovementTap: (movement: Movement) => void }) {
+function BlockCard({ block, onMovementTap, prMap, roundTo, weightUnit }: { block: WorkoutBlock; onMovementTap: (movement: Movement) => void; prMap: Map<string, { weight: number; reps: number }>; roundTo: number; weightUnit: string }) {
   return (
     <Card padding="md" className="animate-slide-up">
       {/* Block header */}
@@ -219,6 +228,8 @@ function BlockCard({ block, onMovementTap }: { block: WorkoutBlock; onMovementTa
             movement={movement}
             showRest={i < block.movements.length - 1}
             onTap={() => onMovementTap(movement)}
+            resolvedWeight={movement.weight ? resolveWeight(movement.weight, movement.name, prMap, estimate1RM, roundTo) : null}
+            weightUnit={weightUnit}
           />
         ))}
       </div>
@@ -234,7 +245,29 @@ export function WorkoutPage() {
   const params = useParams<{ weekNumber: string; dayNumber: string }>()
   const navigate = useNavigate()
   const { program } = useProgram()
+  const logs = useWorkoutLogs()
+  const settings = useSettings()
   const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null)
+
+  const prMap = useMemo(() => {
+    const map = new Map<string, { weight: number; reps: number }>()
+    for (const log of logs) {
+      if (!log.exercises) continue
+      for (const ex of log.exercises) {
+        const key = ex.movementName.toLowerCase()
+        for (const set of ex.sets) {
+          if (!set.weight || !set.completed) continue
+          const existing = map.get(key)
+          if (!existing || set.weight > existing.weight) {
+            map.set(key, { weight: set.weight, reps: set.reps ?? 1 })
+          }
+        }
+      }
+    }
+    return map
+  }, [logs])
+
+  const roundTo = settings.weightUnit === 'kg' ? 2.5 : 5
 
   const weekNumber = Number(params.weekNumber)
   const dayNumber = Number(params.dayNumber)
@@ -332,7 +365,7 @@ export function WorkoutPage() {
       <div className="space-y-4 mb-8">
         {sortedBlocks.map((block, i) => (
           <div key={`${block.type}-${i}`} className={`delay-${Math.min(i + 1, 5)}`}>
-            <BlockCard block={block} onMovementTap={setSelectedMovement} />
+            <BlockCard block={block} onMovementTap={setSelectedMovement} prMap={prMap} roundTo={roundTo} weightUnit={settings.weightUnit} />
           </div>
         ))}
       </div>
