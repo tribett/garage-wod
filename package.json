@@ -4,6 +4,29 @@
   "description": "Garage gym workout tracker for CrossFit athletes",
   "type": "module",
   "license": "MIT",
+  "author": "Michael Tribett",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tribett/garage-wod.git"
+  },
+  "homepage": "https://garage-wod.vercel.app",
+  "bugs": "https://github.com/tribett/garage-wod/issues",
+  "keywords": [
+    "crossfit",
+    "workout",
+    "gym",
+    "tracker",
+    "pwa",
+    "fitness",
+    "garage-gym",
+    "wod",
+    "exercise",
+    "react"
+  ],
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
