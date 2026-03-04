@@ -23,6 +23,10 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { TrainingCalendar } from '@/components/ui/TrainingCalendar'
+import { GoalCard } from '@/components/ui/GoalCard'
+import { Modal } from '@/components/ui/Modal'
+import { sortGoals, updateGoalProgress, createGoal } from '@/lib/goals'
+import type { Goal, GoalType } from '@/lib/goals'
 import type { Day, DayIntent, WodScoring } from '@/types/program'
 import type { PR } from '@/lib/pr-calculator'
 import type { WeeklyVolume } from '@/lib/volume-calculator'
@@ -704,6 +708,88 @@ function RetestCard({ suggestions, onRetest }: {
   )
 }
 
+function AddGoalModal({ open, onClose, onSave }: { open: boolean; onClose: () => void; onSave: (goal: Goal) => void }) {
+  const [type, setType] = useState<GoalType>('weight')
+  const [movementName, setMovementName] = useState('')
+  const [targetValue, setTargetValue] = useState<number | undefined>()
+  const [unit, setUnit] = useState('lbs')
+  const [deadline, setDeadline] = useState('')
+
+  const handleSubmit = () => {
+    if (!movementName.trim() || !targetValue) return
+    const goal = createGoal({
+      type,
+      movementName: movementName.trim(),
+      targetValue,
+      unit,
+      deadline: deadline || undefined,
+    })
+    onSave(goal)
+    setMovementName('')
+    setTargetValue(undefined)
+    setDeadline('')
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="New Goal">
+      <div className="space-y-3">
+        {/* Type selector */}
+        <div className="flex gap-2">
+          {(['weight', 'time', 'skill'] as GoalType[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => {
+                setType(t)
+                setUnit(t === 'weight' ? 'lbs' : t === 'time' ? 'sec' : 'reps')
+              }}
+              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${
+                type === t
+                  ? 'bg-accent text-white'
+                  : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+              }`}
+            >
+              {t === 'weight' ? '🏋️ Weight' : t === 'time' ? '⏱️ Time' : '💪 Skill'}
+            </button>
+          ))}
+        </div>
+
+        {/* Movement name */}
+        <input
+          type="text"
+          value={movementName}
+          onChange={(e) => setMovementName(e.target.value)}
+          placeholder="Movement name (e.g., Back Squat)"
+          className="w-full h-10 px-3 rounded-xl text-sm bg-zinc-50 border border-zinc-200 text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-accent/30"
+        />
+
+        {/* Target */}
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={targetValue ?? ''}
+            onChange={(e) => setTargetValue(e.target.value ? Number(e.target.value) : undefined)}
+            placeholder="Target"
+            className="flex-1 h-10 px-3 rounded-xl text-sm bg-zinc-50 border border-zinc-200 text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-accent/30"
+          />
+          <span className="flex items-center text-xs text-zinc-500 dark:text-zinc-400 px-2">{unit}</span>
+        </div>
+
+        {/* Deadline */}
+        <input
+          type="date"
+          value={deadline}
+          onChange={(e) => setDeadline(e.target.value)}
+          className="w-full h-10 px-3 rounded-xl text-sm bg-zinc-50 border border-zinc-200 text-zinc-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-accent/30"
+        />
+
+        <Button variant="primary" fullWidth onClick={handleSubmit} disabled={!movementName.trim() || !targetValue}>
+          Create Goal
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // DashboardPage
 // ---------------------------------------------------------------------------
@@ -766,6 +852,48 @@ export function DashboardPage() {
     () => getRestDayMessage(streak, lastWorkoutDate),
     [streak, lastWorkoutDate],
   )
+
+  // Goals
+  const [goals, setGoals] = useState<Goal[]>(() =>
+    storage.load<Goal[]>(STORAGE_KEYS.GOALS, []),
+  )
+  const [showAddGoal, setShowAddGoal] = useState(false)
+
+  const prMap = useMemo(() => {
+    const map = new Map<string, { weight: number; reps: number }>()
+    for (const log of logs) {
+      if (!log.exercises) continue
+      for (const ex of log.exercises) {
+        for (const set of ex.sets) {
+          if (!set.weight || !set.completed) continue
+          const key = ex.movementName.toLowerCase()
+          const existing = map.get(key)
+          if (!existing || set.weight > existing.weight) {
+            map.set(key, { weight: set.weight, reps: set.reps ?? 1 })
+          }
+        }
+      }
+    }
+    return map
+  }, [logs])
+
+  const activeGoals = useMemo(() => {
+    const updated = goals.map((g) => updateGoalProgress(g, prMap))
+    return sortGoals(updated).filter((g) => !g.completedAt).slice(0, 3)
+  }, [goals, prMap])
+
+  const handleAddGoal = useCallback((goal: Goal) => {
+    const updated = [...goals, goal]
+    setGoals(updated)
+    storage.save(STORAGE_KEYS.GOALS, updated)
+    setShowAddGoal(false)
+  }, [goals])
+
+  const handleDeleteGoal = useCallback((id: string) => {
+    const updated = goals.filter((g) => g.id !== id)
+    setGoals(updated)
+    storage.save(STORAGE_KEYS.GOALS, updated)
+  }, [goals])
 
   if (!program) {
     return (
@@ -856,6 +984,36 @@ export function DashboardPage() {
         {/* Training Calendar */}
         {logs.length > 0 && <TrainingCalendar logs={logs} />}
 
+        {/* Goals */}
+        {(activeGoals.length > 0 || goals.length === 0) && (
+          <div className="animate-slide-up delay-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-display font-semibold text-sm text-zinc-900 dark:text-zinc-50">
+                Goals
+              </h3>
+              <button
+                onClick={() => setShowAddGoal(true)}
+                className="text-xs font-semibold text-accent dark:text-accent-light hover:underline"
+              >
+                + Add
+              </button>
+            </div>
+            {activeGoals.length > 0 ? (
+              <div className="space-y-2">
+                {activeGoals.map((goal) => (
+                  <GoalCard key={goal.id} goal={goal} onDelete={handleDeleteGoal} />
+                ))}
+              </div>
+            ) : (
+              <Card padding="sm">
+                <p className="text-xs text-zinc-400 dark:text-zinc-500 text-center py-2">
+                  Set a goal to track your progress
+                </p>
+              </Card>
+            )}
+          </div>
+        )}
+
         {/* Training Load (RPE) */}
         <RPEDisplay avgRPE={avgRPE} warning={trainingLoadWarning} />
 
@@ -871,6 +1029,12 @@ export function DashboardPage() {
         {/* Recent PRs */}
         <RecentPRs prs={recentPRs} unit={settings.weightUnit} />
       </div>
+
+      <AddGoalModal
+        open={showAddGoal}
+        onClose={() => setShowAddGoal(false)}
+        onSave={handleAddGoal}
+      />
     </div>
   )
 }
