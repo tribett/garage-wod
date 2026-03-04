@@ -38,7 +38,7 @@ export function predictDifficulty(
   blocks: WorkoutBlock[],
   prs: Map<string, { value: number; reps: number }>,
   recentRPEs?: number[],
-  _bodyweight?: number,
+  _bodyweight?: number, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): DifficultyPrediction {
   const factors: DifficultyFactor[] = []
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useWorkoutLogs, useWorkoutLogDispatch } from '@/contexts/WorkoutLogContext'
@@ -64,8 +64,16 @@ export function WodPage() {
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [wodType, setWodType] = useState<WodType>('forTime')
-  const [score, setScore] = useState('')
+  const [wodType, setWodType] = useState<WodType>(() => {
+    if (locationState?.timerMode) {
+      const mode = locationState.timerMode as WodType
+      if (['forTime', 'amrap', 'emom', 'tabata', 'rounds'].includes(mode)) {
+        return mode
+      }
+    }
+    return 'forTime'
+  })
+  const [score, setScore] = useState(() => locationState?.timerScore ?? '')
   const [scaling, setScaling] = useState('')
   const [notes, setNotes] = useState('')
   const [saved, setSaved] = useState(false)
@@ -76,19 +84,6 @@ export function WodPage() {
   const [showPicker, setShowPicker] = useState(false)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<BenchmarkWod['category'] | 'all'>('all')
-
-  // Auto-fill from timer (Feature 2)
-  useEffect(() => {
-    if (locationState?.timerScore) {
-      setScore(locationState.timerScore)
-      if (locationState.timerMode) {
-        const mode = locationState.timerMode as WodType
-        if (['forTime', 'amrap', 'emom', 'tabata', 'rounds'].includes(mode)) {
-          setWodType(mode)
-        }
-      }
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Count standalone WODs for generating weekNumber/dayNumber
   const standaloneCount = logs.filter((l) => l.programId === STANDALONE_PROGRAM_ID).length

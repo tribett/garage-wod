@@ -118,7 +118,7 @@ export function useTimer(
       dispatch({ type: 'COMPLETE' })
       onComplete?.()
     } else {
-      rafRef.current = requestAnimationFrame(tick)
+      rafRef.current = requestAnimationFrame(tick) // eslint-disable-line react-hooks/immutability
     }
   }, [config, strategy, onBeep, onLongBeep, onComplete])
 

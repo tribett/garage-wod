@@ -123,23 +123,47 @@ export function parseVoiceInput(transcript: string): VoiceResult {
   return { weight: null, reps: null, raw, confidence: 0 }
 }
 
+// Web Speech API types (not in standard TypeScript lib)
+interface SpeechRecognitionResult {
+  transcript: string
+}
+
+interface SpeechRecognitionEvent {
+  results: SpeechRecognitionResult[][]
+}
+
+interface SpeechRecognitionInstance {
+  continuous: boolean
+  interimResults: boolean
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  start(): void
+  stop(): void
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
+
+function getSpeechRecognitionCtor(): SpeechRecognitionConstructor | undefined {
+  if (typeof window === 'undefined') return undefined
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as Record<string, any>
+  return w.SpeechRecognition || w.webkitSpeechRecognition
+}
+
 export function isVoiceSupported(): boolean {
-  if (typeof window === 'undefined') return false
-  const w = window as any
-  return !!(w.SpeechRecognition || w.webkitSpeechRecognition)
+  return getSpeechRecognitionCtor() !== undefined
 }
 
 export function startListening(
-  onResult: (result: VoiceResult) => void
+  onResult: (result: VoiceResult) => void,
 ): () => void {
-  const w = window as any
-  const SpeechRecognitionCtor =
-    w.SpeechRecognition || w.webkitSpeechRecognition
-  const recognition = new SpeechRecognitionCtor()
+  const Ctor = getSpeechRecognitionCtor()
+  if (!Ctor) throw new Error('Speech recognition not supported')
+
+  const recognition = new Ctor()
   recognition.continuous = false
   recognition.interimResults = false
 
-  recognition.onresult = (event: any) => {
+  recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript
     const result = parseVoiceInput(transcript)
     onResult(result)
@@ -147,7 +171,5 @@ export function startListening(
 
   recognition.start()
 
-  return () => {
-    recognition.stop()
-  }
+  return () => recognition.stop()
 }

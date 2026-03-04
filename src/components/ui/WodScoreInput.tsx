@@ -62,7 +62,7 @@ function ForTimeInput({
 
   useEffect(() => {
     const p = parseForTime(value)
-    setMinutes(p.minutes)
+    setMinutes(p.minutes) // eslint-disable-line react-hooks/set-state-in-effect
     setSeconds(p.seconds)
   }, [value])
 
@@ -124,7 +124,7 @@ function AmrapInput({
 
   useEffect(() => {
     const p = parseAmrap(value)
-    setRounds(p.rounds)
+    setRounds(p.rounds) // eslint-disable-line react-hooks/set-state-in-effect
     setReps(p.reps)
   }, [value])
 
