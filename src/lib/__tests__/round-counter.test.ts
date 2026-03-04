@@ -4,7 +4,6 @@ import {
   decrementRound,
   setExtraReps,
   formatRoundCount,
-  type RoundCount,
 } from '@/lib/round-counter'
 
 describe('incrementRound', () => {

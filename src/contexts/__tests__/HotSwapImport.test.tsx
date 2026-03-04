@@ -3,7 +3,6 @@ import { render, screen, act, fireEvent } from '@testing-library/react'
 import { WorkoutLogProvider, useWorkoutLogs, useWorkoutLogDispatch } from '../WorkoutLogContext'
 import { SettingsProvider, useSettings, useReplaceSettings } from '../SettingsContext'
 import type { WorkoutLog } from '@/types/workout-log'
-import type { Settings } from '@/types/settings'
 
 // In-memory localStorage stub
 let store: Record<string, string> = {}
