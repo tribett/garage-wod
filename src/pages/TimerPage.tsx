@@ -6,6 +6,9 @@ import { useWakeLock } from '@/hooks/useWakeLock'
 import { useSettings } from '@/contexts/SettingsContext'
 import { formatMsPrecise } from '@/lib/date-utils'
 import { formatTimerScore } from '@/lib/format-timer-score'
+import { getMovementLabel } from '@/lib/emom-cycle'
+import { incrementRound, decrementRound, setExtraReps, formatRoundCount } from '@/lib/round-counter'
+import type { RoundCount } from '@/lib/round-counter'
 import { saveTimerConfig, loadTimerConfig } from '@/lib/timer-config-storage'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -277,6 +280,7 @@ function ActiveTimer({
 }) {
   const [showMovements, setShowMovements] = useState(true)
   const [showLeaveWarning, setShowLeaveWarning] = useState(false)
+  const [roundCount, setRoundCount] = useState<RoundCount>({ rounds: 0, extraReps: 0 })
   const pendingNavRef = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
   const settings = useSettings()
@@ -354,6 +358,13 @@ function ActiveTimer({
     state.intervalRemaining > 0 &&
     state.intervalRemaining <= 10000
 
+  // EMOM movement cycling label
+  const emomMovementLabel = useMemo(() => {
+    if (config.mode !== 'emom' || !movements || movements.length === 0) return ''
+    const movementObjects = movements.map((name) => ({ name }))
+    return getMovementLabel(movementObjects, state.currentRound, state.totalRounds)
+  }, [config.mode, movements, state.currentRound, state.totalRounds])
+
   const handleNavigateAway = useCallback((navFn: () => void) => {
     if (state.status === 'running' || state.status === 'paused') {
       pendingNavRef.current = navFn
@@ -399,6 +410,8 @@ function ActiveTimer({
           timerScore,
           timerMode: config.mode,
           timerElapsed: state.elapsed,
+          timerRounds: roundCount.rounds,
+          timerExtraReps: roundCount.extraReps,
         },
       })
     } else {
@@ -408,6 +421,8 @@ function ActiveTimer({
           timerScore,
           timerMode: config.mode,
           timerElapsed: state.elapsed,
+          timerRounds: roundCount.rounds,
+          timerExtraReps: roundCount.extraReps,
         },
       })
     }
@@ -468,6 +483,68 @@ function ActiveTimer({
         </div>
       )}
 
+      {/* AMRAP round counter */}
+      {config.mode === 'amrap' && state.status !== 'idle' && (
+        <div className="shrink-0 px-5 pb-3">
+          {/* Round display + label */}
+          <div className="text-center mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              Rounds
+            </span>
+            <div className="font-display font-extrabold text-4xl tabular-nums text-white">
+              {formatRoundCount(roundCount)}
+            </div>
+          </div>
+
+          {/* Big + button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setRoundCount((prev) => incrementRound(prev))
+            }}
+            className="
+              w-full min-h-16 rounded-2xl flex items-center justify-center
+              text-2xl font-bold
+              bg-accent text-white
+              active:scale-95 transition-transform duration-100 select-none
+            "
+            aria-label="Add round"
+          >
+            + Round
+          </button>
+
+          {/* Small row: decrement + extra reps */}
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setRoundCount((prev) => decrementRound(prev))
+              }}
+              className="
+                w-12 h-10 rounded-xl flex items-center justify-center text-lg font-bold
+                bg-zinc-800 text-zinc-400 hover:bg-zinc-700
+                active:scale-95 transition-all duration-100 select-none
+              "
+              aria-label="Remove round"
+            >
+              −
+            </button>
+            <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+              <NumberInput
+                label="Extra Reps"
+                value={roundCount.extraReps || undefined}
+                onChange={(v) => setRoundCount((prev) => setExtraReps(prev, v ?? 0))}
+                step={1}
+                min={0}
+                placeholder="0"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Timer display area — tappable when running */}
       <div
         className="flex-1 flex flex-col items-center justify-center px-6 relative"
@@ -499,6 +576,15 @@ function ActiveTimer({
                     <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                   </svg>
                 </div>
+              </div>
+            )}
+
+            {/* EMOM movement cycling indicator */}
+            {emomMovementLabel && state.status !== 'idle' && (
+              <div className="mb-4 px-5 py-2.5 rounded-2xl bg-accent/10 dark:bg-accent/15 text-center animate-fade-in">
+                <span className="font-display font-extrabold text-xl sm:text-2xl text-accent dark:text-accent-light tracking-wide">
+                  {emomMovementLabel}
+                </span>
               </div>
             )}
 

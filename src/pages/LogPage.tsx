@@ -26,6 +26,8 @@ interface LogLocationState {
   timerScore?: string
   timerMode?: string
   timerElapsed?: number
+  timerRounds?: number
+  timerExtraReps?: number
 }
 
 export function LogPage() {
@@ -115,15 +117,39 @@ export function LogPage() {
     return map
   })
   // Pre-fill WOD score from timer result (Improvement 1) or existing log
-  const [wodScore, setWodScore] = useState(
-    existingLog?.wodResult?.score ?? locationState?.timerScore ?? '',
-  )
+  // When AMRAP round data is available from the timer, format it as the score
+  const [wodScore, setWodScore] = useState(() => {
+    if (existingLog?.wodResult?.score) return existingLog.wodResult.score
+    if (
+      locationState?.timerMode === 'amrap' &&
+      locationState?.timerRounds != null &&
+      locationState.timerRounds > 0
+    ) {
+      const r = locationState.timerRounds
+      const er = locationState.timerExtraReps ?? 0
+      return `${r}+${er}`
+    }
+    return locationState?.timerScore ?? ''
+  })
   // Track structured WOD data for type-appropriate scoring (Improvement 2)
+  // Pre-fill from timer round data if available
   const [wodStructured, setWodStructured] = useState<{
     roundsCompleted?: number
     extraReps?: number
     totalTime?: number
-  } | undefined>(undefined)
+  } | undefined>(() => {
+    if (
+      locationState?.timerMode === 'amrap' &&
+      locationState?.timerRounds != null &&
+      locationState.timerRounds > 0
+    ) {
+      return {
+        roundsCompleted: locationState.timerRounds,
+        extraReps: locationState.timerExtraReps ?? 0,
+      }
+    }
+    return undefined
+  })
   const [notes, setNotes] = useState(existingLog?.notes ?? '')
   const [showCelebration, setShowCelebration] = useState(false)
   const [newPRs, setNewPRs] = useState<PR[]>([])
