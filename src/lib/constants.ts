@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   WORKOUT_LOGS: 'gw_workout_logs',
   CUSTOM_PROGRAMS: 'gw_custom_programs',
   LAST_TIMER_CONFIG: 'gw_last_timer',
+  BODYWEIGHT_LOG: 'gw_bodyweight',
 } as const
 
 export const DEFAULT_PROGRAM_ID = 'return-to-crossfit'

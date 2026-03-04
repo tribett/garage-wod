@@ -10,6 +10,7 @@ export interface WorkoutLog {
   exercises?: ExerciseLog[]
   wodResult?: WodResult
   notes?: string
+  rpe?: number
   /** For standalone WODs (programId === 'standalone') */
   title?: string
   /** Free-text workout description for standalone WODs */

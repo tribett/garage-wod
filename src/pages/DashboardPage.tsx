@@ -1,13 +1,19 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProgram } from '@/contexts/ProgramContext'
 import { useWorkoutLogs } from '@/contexts/WorkoutLogContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { calculateStreak, getWorkoutsThisWeek, getWorkoutsThisMonth, getTotalWodCount } from '@/lib/streak-calculator'
 import { getRestDayMessage } from '@/lib/rest-day-guidance'
+import { getAverageRPE, getTrainingLoadWarning, RPE_LABELS } from '@/lib/rpe'
 import { getRecentPRs } from '@/lib/pr-calculator'
 import { getWeeklyVolume } from '@/lib/volume-calculator'
 import { findNextWorkout } from '@/lib/next-workout'
+import { addEntry, getLatestWeight, getToday } from '@/lib/bodyweight-log'
+import type { BodyweightEntry } from '@/lib/bodyweight-log'
+import { storage } from '@/lib/storage'
+import { STORAGE_KEYS } from '@/lib/constants'
+import { NumberInput } from '@/components/ui/NumberInput'
 import { formatShortDate } from '@/lib/date-utils'
 import { Header } from '@/components/layout/Header'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -479,6 +485,33 @@ function TotalDisplay({ count }: { count: number }) {
   )
 }
 
+function RPEDisplay({ avgRPE, warning }: { avgRPE: number | null; warning: string | null }) {
+  if (avgRPE === null) return null
+  const nearestLevel = Math.round(avgRPE) as 1 | 2 | 3 | 4 | 5
+  const info = RPE_LABELS[nearestLevel]
+
+  return (
+    <Card padding="sm" className="animate-slide-up delay-4">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950">
+          <span className="text-lg">{info?.emoji ?? '😤'}</span>
+        </div>
+        <div className="flex-1">
+          <p className="font-display font-bold text-lg text-zinc-900 dark:text-zinc-50 leading-tight">
+            {avgRPE}
+          </p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">avg effort</p>
+        </div>
+      </div>
+      {warning && (
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
+          ⚠️ {warning}
+        </p>
+      )}
+    </Card>
+  )
+}
+
 function VolumeChange({ label, thisVal, lastVal }: { label: string; thisVal: number; lastVal: number }) {
   const diff = lastVal > 0 ? Math.round(((thisVal - lastVal) / lastVal) * 100) : thisVal > 0 ? 100 : 0
   const isUp = diff > 0
@@ -555,6 +588,83 @@ function RecentPRs({ prs, unit }: { prs: PR[]; unit: 'lbs' | 'kg' }) {
   )
 }
 
+function BodyweightCard({ unit }: { unit: 'lbs' | 'kg' }) {
+  const [bwLog, setBwLog] = useState<BodyweightEntry[]>(() =>
+    storage.load<BodyweightEntry[]>(STORAGE_KEYS.BODYWEIGHT_LOG, []),
+  )
+  const [editing, setEditing] = useState(false)
+  const [inputValue, setInputValue] = useState<number | undefined>()
+
+  const todayWeight = useMemo(() => getToday(bwLog), [bwLog])
+  const latestWeight = useMemo(() => getLatestWeight(bwLog), [bwLog])
+
+  const handleSave = useCallback(() => {
+    if (inputValue == null || inputValue <= 0) return
+    const today = new Date().toISOString().slice(0, 10)
+    const updated = addEntry(bwLog, { date: today, weight: inputValue })
+    setBwLog(updated)
+    storage.save(STORAGE_KEYS.BODYWEIGHT_LOG, updated)
+    setEditing(false)
+    setInputValue(undefined)
+  }, [inputValue, bwLog])
+
+  const displayWeight = todayWeight ?? latestWeight
+  const step = unit === 'lbs' ? 1 : 0.5
+
+  return (
+    <Card padding="sm" className="animate-slide-up delay-4">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-950">
+          <svg className="w-5 h-5 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971Z" />
+          </svg>
+        </div>
+        {editing ? (
+          <div className="flex-1 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <div className="flex-1">
+              <NumberInput
+                value={inputValue}
+                onChange={setInputValue}
+                step={step}
+                min={50}
+                placeholder={displayWeight ? String(displayWeight) : '175'}
+                unit={unit}
+              />
+            </div>
+            <button
+              onClick={handleSave}
+              className="text-xs font-semibold text-accent dark:text-accent-light px-2 py-1"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => { setEditing(false); setInputValue(undefined) }}
+              className="text-xs text-zinc-400 px-1 py-1"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <button
+            className="flex-1 flex items-center justify-between"
+            onClick={() => setEditing(true)}
+          >
+            <div>
+              <p className="font-display font-bold text-lg text-zinc-900 dark:text-zinc-50 leading-tight text-left">
+                {displayWeight ? `${displayWeight} ${unit}` : '—'}
+              </p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 text-left">
+                {todayWeight ? 'today' : displayWeight ? 'last logged' : 'tap to log'}
+              </p>
+            </div>
+            <span className="text-xs text-zinc-400 dark:text-zinc-500">BW</span>
+          </button>
+        )}
+      </div>
+    </Card>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // DashboardPage
 // ---------------------------------------------------------------------------
@@ -595,6 +705,20 @@ export function DashboardPage() {
     return completed.sort((a, b) =>
       new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
     )[0].completedAt
+  }, [logs])
+
+  const avgRPE = useMemo(() => {
+    const thisWeekLogs = logs.filter((l) => l.completed && l.rpe != null)
+    return getAverageRPE(thisWeekLogs)
+  }, [logs])
+
+  const trainingLoadWarning = useMemo(() => {
+    const recentRPEs = logs
+      .filter((l) => l.completed && l.rpe != null)
+      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
+      .slice(0, 5)
+      .map((l) => l.rpe!)
+    return getTrainingLoadWarning(recentRPEs)
   }, [logs])
 
   const restDayMessage = useMemo(
@@ -677,6 +801,9 @@ export function DashboardPage() {
           </div>
         </Card>
 
+        {/* Bodyweight quick-log */}
+        <BodyweightCard unit={settings.weightUnit} />
+
         {/* Stats grid */}
         <div className="grid grid-cols-2 gap-3">
           <StreakDisplay streak={streak} />
@@ -684,6 +811,9 @@ export function DashboardPage() {
           <MonthlyDisplay count={workoutsThisMonth} />
           <TotalDisplay count={totalWods} />
         </div>
+
+        {/* Training Load (RPE) */}
+        <RPEDisplay avgRPE={avgRPE} warning={trainingLoadWarning} />
 
         {/* Weekly Volume */}
         <WeeklyVolumeCard volume={weeklyVolume} />

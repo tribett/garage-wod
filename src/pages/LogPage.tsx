@@ -9,6 +9,7 @@ import { storage } from '@/lib/storage'
 import { WEIGHT_INCREMENTS } from '@/lib/constants'
 import { detectNewPRs } from '@/lib/pr-calculator'
 import { triggerHaptic } from '@/lib/haptics'
+import { RPE_LABELS } from '@/lib/rpe'
 import type { PR } from '@/lib/pr-calculator'
 import { Header } from '@/components/layout/Header'
 import { Card } from '@/components/ui/Card'
@@ -151,6 +152,7 @@ export function LogPage() {
     return undefined
   })
   const [notes, setNotes] = useState(existingLog?.notes ?? '')
+  const [rpe, setRpe] = useState<number | undefined>(existingLog?.rpe)
   const [showCelebration, setShowCelebration] = useState(false)
   const [newPRs, setNewPRs] = useState<PR[]>([])
   const [showConfetti, setShowConfetti] = useState(false)
@@ -179,6 +181,7 @@ export function LogPage() {
       dayNumber: day,
       completedAt: new Date().toISOString(),
       completed: true,
+      rpe,
     }
 
     if (existingLog) {
@@ -270,6 +273,7 @@ export function LogPage() {
       exercises: exercises.length > 0 ? exercises : undefined,
       wodResult,
       notes: notes.trim() || undefined,
+      rpe,
     }
 
     if (existingLog) {
@@ -514,6 +518,38 @@ export function LogPage() {
               focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent
             "
           />
+        </Card>
+
+        {/* RPE Rating */}
+        <Card padding="md" className="animate-slide-up delay-2">
+          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-3">
+            How did it feel?
+          </p>
+          <div className="flex items-center justify-between gap-1">
+            {[1, 2, 3, 4, 5].map((level) => {
+              const info = RPE_LABELS[level]
+              const isSelected = rpe === level
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => setRpe(isSelected ? undefined : level)}
+                  className={`
+                    flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl transition-all duration-150
+                    ${isSelected
+                      ? 'bg-accent/10 dark:bg-accent/20 ring-2 ring-accent dark:ring-accent-dark scale-105'
+                      : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                    }
+                  `}
+                >
+                  <span className="text-xl">{info.emoji}</span>
+                  <span className={`text-[10px] font-semibold ${isSelected ? 'text-accent dark:text-accent-light' : 'text-zinc-400 dark:text-zinc-500'}`}>
+                    {info.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </Card>
 
         {/* Level 2: Structured WOD Score (Improvement 2) */}
