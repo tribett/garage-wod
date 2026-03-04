@@ -193,7 +193,7 @@ function MovementRow({ movement, showRest, onTap, resolvedWeight, weightUnit }: 
 // Block Display
 // ---------------------------------------------------------------------------
 
-function BlockCard({ block, onMovementTap, prMap, roundTo, weightUnit }: { block: WorkoutBlock; onMovementTap: (movement: Movement) => void; prMap: Map<string, { weight: number; reps: number }>; roundTo: number; weightUnit: string }) {
+function BlockCard({ block, onMovementTap, onStartStrength, prMap, roundTo, weightUnit }: { block: WorkoutBlock; onMovementTap: (movement: Movement) => void; onStartStrength?: (movementName: string, totalSets: number, restSeconds: number) => void; prMap: Map<string, { weight: number; reps: number }>; roundTo: number; weightUnit: string }) {
   return (
     <Card padding="md" className="animate-slide-up">
       {/* Block header */}
@@ -233,6 +233,25 @@ function BlockCard({ block, onMovementTap, prMap, roundTo, weightUnit }: { block
           />
         ))}
       </div>
+
+      {/* Strength timer button for non-WOD blocks with sets */}
+      {block.type !== 'wod' && block.movements.some((m) => m.sets && m.sets > 1) && onStartStrength && (
+        <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <Button
+            variant="secondary"
+            size="sm"
+            fullWidth
+            onClick={() => {
+              const movement = block.movements.find((m) => m.sets && m.sets > 1)
+              if (movement) {
+                onStartStrength(movement.name, movement.sets ?? 3, movement.rest ?? 90)
+              }
+            }}
+          >
+            Start Strength Timer
+          </Button>
+        </div>
+      )}
     </Card>
   )
 }
@@ -294,6 +313,22 @@ export function WorkoutPage() {
   // Find the WOD block (if any) to power the "Start Timer" button
   const wodBlock = day.blocks.find((b) => b.type === 'wod' && b.scoring)
   const timerConfig = wodBlock?.scoring ? scoringToTimerConfig(wodBlock.scoring) : null
+
+  const handleStartStrength = (movementName: string, totalSets: number, restSeconds: number) => {
+    navigate('/timer', {
+      state: {
+        config: {
+          mode: 'rest' as TimerMode,
+          totalDuration: restSeconds * 1000 * totalSets,
+        },
+        strengthSession: {
+          movementName,
+          totalSets,
+          restSeconds,
+        },
+      },
+    })
+  }
 
   const sortedBlocks = sortBlocks(day.blocks)
 
@@ -365,7 +400,7 @@ export function WorkoutPage() {
       <div className="space-y-4 mb-8">
         {sortedBlocks.map((block, i) => (
           <div key={`${block.type}-${i}`} className={`delay-${Math.min(i + 1, 5)}`}>
-            <BlockCard block={block} onMovementTap={setSelectedMovement} prMap={prMap} roundTo={roundTo} weightUnit={settings.weightUnit} />
+            <BlockCard block={block} onMovementTap={setSelectedMovement} onStartStrength={handleStartStrength} prMap={prMap} roundTo={roundTo} weightUnit={settings.weightUnit} />
           </div>
         ))}
       </div>

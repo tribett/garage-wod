@@ -22,6 +22,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ProgressBar } from '@/components/ui/ProgressBar'
+import { TrainingCalendar } from '@/components/ui/TrainingCalendar'
 import type { Day, DayIntent, WodScoring } from '@/types/program'
 import type { PR } from '@/lib/pr-calculator'
 import type { WeeklyVolume } from '@/lib/volume-calculator'
@@ -851,6 +852,9 @@ export function DashboardPage() {
           <MonthlyDisplay count={workoutsThisMonth} />
           <TotalDisplay count={totalWods} />
         </div>
+
+        {/* Training Calendar */}
+        {logs.length > 0 && <TrainingCalendar logs={logs} />}
 
         {/* Training Load (RPE) */}
         <RPEDisplay avgRPE={avgRPE} warning={trainingLoadWarning} />
