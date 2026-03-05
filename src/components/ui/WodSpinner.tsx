@@ -3,9 +3,10 @@ import type { GeneratedWod } from '@/lib/wod-generator'
 
 interface WodSpinnerProps {
   onGenerate: () => GeneratedWod
+  onStartTimer?: (wod: GeneratedWod) => void
 }
 
-export function WodSpinner({ onGenerate }: WodSpinnerProps) {
+export function WodSpinner({ onGenerate, onStartTimer }: WodSpinnerProps) {
   const [wod, setWod] = useState<GeneratedWod | null>(null)
 
   function handleSpin() {
@@ -42,6 +43,20 @@ export function WodSpinner({ onGenerate }: WodSpinnerProps) {
           <em className="block text-sm text-zinc-500 dark:text-zinc-400">
             {wod.reasoning}
           </em>
+
+          {onStartTimer && (
+            <button
+              onClick={() => onStartTimer(wod)}
+              className="
+                w-full mt-2 px-4 py-2.5 rounded-xl font-bold text-sm
+                bg-accent text-white hover:bg-accent/90
+                dark:bg-accent-dark dark:hover:bg-accent-dark/90
+                transition-colors
+              "
+            >
+              ⏱️ Start Timer
+            </button>
+          )}
         </div>
       )}
     </div>

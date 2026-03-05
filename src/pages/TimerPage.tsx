@@ -14,10 +14,14 @@ import { saveTimerConfig, loadTimerConfig } from '@/lib/timer-config-storage'
 import { playSound } from '@/lib/competition-sounds'
 import { createGhostFromHistory, updateGhostState } from '@/lib/ghost-racer'
 import { createPartnerState, switchPartner, getPartnerSummary } from '@/lib/partner-wod'
+import { buildWodLogNavState, generatedWodToTimerConfig } from '@/lib/generated-wod-to-timer-config'
+import type { GeneratedWod } from '@/lib/wod-generator'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { NumberInput } from '@/components/ui/NumberInput'
 import { GhostPacer } from '@/components/ui/GhostPacer'
+import { WodSpinner } from '@/components/ui/WodSpinner'
+import { generateWod } from '@/lib/wod-generator'
 import type { TimerConfig, TimerMode } from '@/types/timer'
 
 // ---------------------------------------------------------------------------
@@ -30,6 +34,7 @@ interface LocationState {
   dayNumber?: number
   wodName?: string
   movements?: string[]
+  generatedWod?: GeneratedWod
 }
 
 // ---------------------------------------------------------------------------
@@ -43,9 +48,16 @@ const TIMER_MODES: { mode: TimerMode; label: string; description: string }[] = [
   { mode: 'tabata', label: 'Tabata', description: '20s work / 10s rest' },
 ]
 
-function TimerSetup({ onStart }: { onStart: (config: TimerConfig) => void }) {
+function TimerSetup({
+  onStart,
+  onStartWithWod,
+}: {
+  onStart: (config: TimerConfig) => void
+  onStartWithWod: (config: TimerConfig, wod: GeneratedWod) => void
+}) {
   // Load last-used config for pre-fill (Improvement 3)
   const saved = useMemo(() => loadTimerConfig(), [])
+  const logs = useWorkoutLogs()
 
   const [selectedMode, setSelectedMode] = useState<TimerMode | null>(
     saved?.mode ? (saved.mode as TimerMode) : null,
@@ -121,6 +133,22 @@ function TimerSetup({ onStart }: { onStart: (config: TimerConfig) => void }) {
       </div>
 
       <div className="flex-1 px-5 pt-4 pb-8 overflow-y-auto">
+        {/* WOD Spinner */}
+        <div className="mb-6">
+          <WodSpinner
+            onGenerate={() => {
+              const wod = generateWod(logs)
+              setSelectedMode(wod.type as TimerMode)
+              if (wod.duration) setMinutes(wod.duration)
+              return wod
+            }}
+            onStartTimer={(wod) => {
+              const { config } = generatedWodToTimerConfig(wod)
+              onStartWithWod(config, wod)
+            }}
+          />
+        </div>
+
         {/* Mode selector */}
         <div className="grid grid-cols-2 gap-3 mb-8">
           {TIMER_MODES.map((tm) => (
@@ -276,12 +304,14 @@ function ActiveTimer({
   dayNumber,
   wodName,
   movements,
+  generatedWod,
 }: {
   config: TimerConfig
   weekNumber?: number
   dayNumber?: number
   wodName?: string
   movements?: string[]
+  generatedWod?: GeneratedWod
 }) {
   const [showMovements, setShowMovements] = useState(true)
   const [showLeaveWarning, setShowLeaveWarning] = useState(false)
@@ -500,28 +530,19 @@ function ActiveTimer({
 
   const handleLogWorkout = () => {
     const timerScore = formatTimerScore(state.elapsed, config.mode)
+    const navState = buildWodLogNavState({
+      timerScore,
+      timerMode: config.mode,
+      timerElapsed: state.elapsed,
+      timerRounds: roundCount.rounds,
+      timerExtraReps: roundCount.extraReps,
+      generatedWod,
+    })
+
     if (weekNumber && dayNumber) {
-      // Pass timer result to LogPage for auto-fill (Improvement 1)
-      navigate(`/log/${weekNumber}/${dayNumber}`, {
-        state: {
-          timerScore,
-          timerMode: config.mode,
-          timerElapsed: state.elapsed,
-          timerRounds: roundCount.rounds,
-          timerExtraReps: roundCount.extraReps,
-        },
-      })
+      navigate(`/log/${weekNumber}/${dayNumber}`, { state: navState })
     } else {
-      // Navigate to WOD page with timer score pre-filled
-      navigate('/wod', {
-        state: {
-          timerScore,
-          timerMode: config.mode,
-          timerElapsed: state.elapsed,
-          timerRounds: roundCount.rounds,
-          timerExtraReps: roundCount.extraReps,
-        },
-      })
+      navigate('/wod', { state: navState })
     }
   }
 
@@ -881,9 +902,29 @@ export function TimerPage() {
   const [config, setConfig] = useState<TimerConfig | null>(
     locationState?.config ?? null,
   )
+  const [spinnerWod, setSpinnerWod] = useState<GeneratedWod | undefined>(
+    locationState?.generatedWod,
+  )
+  const [spinnerMovements, setSpinnerMovements] = useState<string[] | undefined>(
+    locationState?.movements,
+  )
+  const [spinnerWodName, setSpinnerWodName] = useState<string | undefined>(
+    locationState?.wodName,
+  )
 
   if (!config) {
-    return <TimerSetup onStart={setConfig} />
+    return (
+      <TimerSetup
+        onStart={setConfig}
+        onStartWithWod={(cfg, wod) => {
+          const navState = generatedWodToTimerConfig(wod)
+          setSpinnerWod(wod)
+          setSpinnerMovements(navState.movements)
+          setSpinnerWodName(navState.wodName)
+          setConfig(cfg)
+        }}
+      />
+    )
   }
 
   return (
@@ -891,8 +932,9 @@ export function TimerPage() {
       config={config}
       weekNumber={locationState?.weekNumber}
       dayNumber={locationState?.dayNumber}
-      wodName={locationState?.wodName}
-      movements={locationState?.movements}
+      wodName={spinnerWodName ?? locationState?.wodName}
+      movements={spinnerMovements ?? locationState?.movements}
+      generatedWod={spinnerWod}
     />
   )
 }

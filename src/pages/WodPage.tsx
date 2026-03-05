@@ -16,7 +16,8 @@ import { Modal } from '@/components/ui/Modal'
 import { SimpleChart } from '@/components/history/SimpleChart'
 import { compareWodScore } from '@/lib/score-comparisons'
 import { WodSpinner } from '@/components/ui/WodSpinner'
-import { generateWod } from '@/lib/wod-generator'
+import { generateWod, type GeneratedWod } from '@/lib/wod-generator'
+import { generatedWodToTimerConfig } from '@/lib/generated-wod-to-timer-config'
 import { ShareResultCard } from '@/components/ShareResultCard'
 import type { WorkoutLog, WodResult } from '@/types/workout-log'
 import type { WodType } from '@/types/program'
@@ -51,6 +52,7 @@ interface WodLocationState {
   timerScore?: string
   timerMode?: string
   timerElapsed?: number
+  generatedWod?: GeneratedWod
 }
 
 export function WodPage() {
@@ -62,9 +64,18 @@ export function WodPage() {
 
   const locationState = location.state as WodLocationState | null
 
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
+  const genWod = locationState?.generatedWod
+
+  const [title, setTitle] = useState(() => genWod?.name ?? '')
+  const [description, setDescription] = useState(() =>
+    genWod
+      ? genWod.movements.map((m) => `${m.reps} ${m.name}`).join('\n')
+      : '',
+  )
   const [wodType, setWodType] = useState<WodType>(() => {
+    if (genWod?.type) {
+      return genWod.type
+    }
     if (locationState?.timerMode) {
       const mode = locationState.timerMode as WodType
       if (['forTime', 'amrap', 'emom', 'tabata', 'rounds'].includes(mode)) {
@@ -261,7 +272,13 @@ export function WodPage() {
       <div className="px-5 space-y-4 pb-8">
         {/* WOD Spinner */}
         <div className="mb-6">
-          <WodSpinner onGenerate={() => generateWod(logs)} />
+          <WodSpinner
+            onGenerate={() => generateWod(logs)}
+            onStartTimer={(wod) => {
+              const navState = generatedWodToTimerConfig(wod)
+              navigate('/timer', { state: { ...navState, generatedWod: wod } })
+            }}
+          />
         </div>
 
         {/* Quick Actions Row */}
