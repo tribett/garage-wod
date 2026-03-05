@@ -64,4 +64,35 @@ describe('WodSpinner', () => {
     fireEvent.click(screen.getByRole('button', { name: /spin/i }))
     expect(screen.getByText(/emom/i)).toBeDefined()
   })
+
+  it('shows Start Timer button after spin when onStartTimer is provided', () => {
+    const onGenerate = vi.fn(() => makeMockWod())
+    const onStartTimer = vi.fn()
+    render(<WodSpinner onGenerate={onGenerate} onStartTimer={onStartTimer} />)
+
+    // No start button before spinning
+    expect(screen.queryByRole('button', { name: /start timer/i })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /spin/i }))
+    expect(screen.getByRole('button', { name: /start timer/i })).toBeDefined()
+  })
+
+  it('does not show Start Timer button when onStartTimer is not provided', () => {
+    const onGenerate = vi.fn(() => makeMockWod())
+    render(<WodSpinner onGenerate={onGenerate} />)
+    fireEvent.click(screen.getByRole('button', { name: /spin/i }))
+    expect(screen.queryByRole('button', { name: /start timer/i })).toBeNull()
+  })
+
+  it('calls onStartTimer with generated WOD when Start Timer clicked', () => {
+    const mockWod = makeMockWod({ name: 'Garage Grinder #77' })
+    const onGenerate = vi.fn(() => mockWod)
+    const onStartTimer = vi.fn()
+    render(<WodSpinner onGenerate={onGenerate} onStartTimer={onStartTimer} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /spin/i }))
+    fireEvent.click(screen.getByRole('button', { name: /start timer/i }))
+
+    expect(onStartTimer).toHaveBeenCalledWith(mockWod)
+  })
 })
